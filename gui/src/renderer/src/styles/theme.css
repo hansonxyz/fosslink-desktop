@@ -18,12 +18,21 @@
   /* Message bubbles */
   --bubble-received: #2a2a3e;
   --bubble-sent: #3a5ba0;
+  --bubble-sent-text: #e0e0e0;
 
   /* Semantic colors */
   --border: #2a2a3e;
   --danger: #ef5350;
   --success: #4caf50;
   --warning: #ffa726;
+
+  /* Links */
+  --link-color: #6ea8fe;
+  --link-visited: #9ec5fe;
+
+  /* Scrollbar */
+  --scrollbar-thumb: #6a6a7a;
+  --scrollbar-thumb-hover: #a0a0b0;
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,

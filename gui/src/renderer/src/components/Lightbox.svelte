@@ -1,22 +1,27 @@
 <script lang="ts">
   import { closeLightbox, lightbox, navigateLightbox, openGalleryLightbox, updateLightboxSrc } from '../stores/lightbox.svelte'
-  import { requestFullFile, getDownloadState } from '../stores/gallery.svelte'
+  import { requestFullFile, getDownloadState, cancelOtherDownloads } from '../stores/gallery.svelte'
 
-  /** Prefetch the next 2 images ahead of the current gallery position */
+  /** Prefetch the next image ahead of the current gallery position */
   function prefetchAhead(): void {
     const items = lightbox.current?.galleryItems
     const idx = lightbox.current?.galleryIndex
     if (!items || idx === undefined) return
 
-    for (let offset = 1; offset <= 2; offset++) {
-      const nextIdx = idx + offset
-      if (nextIdx >= items.length) break
-      const item = items[nextIdx]!
-      if (item.kind !== 'image') continue
-      const dl = getDownloadState(item.path)
-      if (dl.state !== 'idle') continue
-      void requestFullFile(item.path, item.size).catch(() => {})
+    // Don't prefetch if the current image is still downloading
+    const currentPath = lightbox.current?.galleryPath
+    if (currentPath) {
+      const currentDl = getDownloadState(currentPath)
+      if (currentDl.state === 'downloading') return
     }
+
+    const nextIdx = idx + 1
+    if (nextIdx >= items.length) return
+    const item = items[nextIdx]!
+    if (item.kind !== 'image') return
+    const dl = getDownloadState(item.path)
+    if (dl.state !== 'idle') return
+    void requestFullFile(item.path, item.size).catch(() => {})
   }
 
   // Trigger prefetch whenever the gallery index changes
@@ -103,6 +108,9 @@
     const path = lightbox.current.galleryPath
     const items = lightbox.current.galleryItems
     const index = lightbox.current.galleryIndex
+
+    // Cancel all in-flight downloads except the current image
+    cancelOtherDownloads(path)
 
     if (lightbox.current.type === 'video' && !lightbox.current.src) {
       // Video: download then show

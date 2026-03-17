@@ -8,6 +8,7 @@
   import { settings } from '../stores/settings.svelte'
   import { t } from '../stores/i18n.svelte'
   import { locales, localeOrder } from '../lib/locales'
+  import { themes } from '../lib/themes'
   interface Props {
     onClose: () => void
     onUnpaired: () => void
@@ -311,6 +312,40 @@
             <option value={code}>{locales[code].name}</option>
           {/each}
         </select>
+      </div>
+    </div>
+
+    <!-- Theme -->
+    <div class="settings-panel__section settings-panel__section--wide">
+      <h3 class="settings-panel__section-title">{t('settings.theme')}</h3>
+      <div class="settings-panel__theme-grid">
+        {#each themes as theme}
+          <button
+            class="settings-panel__theme-card"
+            class:settings-panel__theme-card--active={settings.theme === theme.id}
+            onclick={() => { settings.theme = theme.id }}
+            title={theme.name}
+          >
+            <div class="settings-panel__theme-preview">
+              <div class="settings-panel__theme-bg" style:background-color={theme.colors['--bg-primary']}>
+                <div class="settings-panel__theme-sidebar" style:background-color={theme.colors['--bg-secondary']}>
+                  <div class="settings-panel__theme-sidebar-item" style:background-color={theme.colors['--bg-hover']}></div>
+                  <div class="settings-panel__theme-sidebar-item" style:background-color={theme.colors['--bg-selected']}></div>
+                  <div class="settings-panel__theme-sidebar-item" style:background-color={theme.colors['--bg-hover']}></div>
+                </div>
+                <div class="settings-panel__theme-chat">
+                  <div class="settings-panel__theme-bubble-recv" style:background-color={theme.colors['--bubble-received']}></div>
+                  <div class="settings-panel__theme-bubble-sent" style:background-color={theme.colors['--bubble-sent']}></div>
+                  <div class="settings-panel__theme-bubble-recv" style:background-color={theme.colors['--bubble-received']}></div>
+                </div>
+              </div>
+            </div>
+            <span
+              class="settings-panel__theme-name"
+              class:settings-panel__theme-name--active={settings.theme === theme.id}
+            >{theme.name}</span>
+          </button>
+        {/each}
       </div>
     </div>
 
@@ -802,5 +837,96 @@
     background-color: var(--accent-primary);
     border-radius: var(--radius-full);
     transition: width 0.3s ease;
+  }
+
+  /* Theme picker */
+  .settings-panel__theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-3);
+  }
+
+  .settings-panel__theme-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    background: none;
+    border: 2px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+    font-family: var(--font-family);
+  }
+
+  .settings-panel__theme-card:hover {
+    background-color: var(--bg-hover);
+  }
+
+  .settings-panel__theme-card--active {
+    border-color: var(--accent-primary);
+  }
+
+  .settings-panel__theme-preview {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .settings-panel__theme-bg {
+    width: 100%;
+    height: 100%;
+    display: flex;
+  }
+
+  .settings-panel__theme-sidebar {
+    width: 30%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 3px;
+  }
+
+  .settings-panel__theme-sidebar-item {
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .settings-panel__theme-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 5px;
+    justify-content: flex-end;
+  }
+
+  .settings-panel__theme-bubble-recv {
+    width: 65%;
+    height: 7px;
+    border-radius: 3px;
+    align-self: flex-start;
+  }
+
+  .settings-panel__theme-bubble-sent {
+    width: 55%;
+    height: 7px;
+    border-radius: 3px;
+    align-self: flex-end;
+  }
+
+  .settings-panel__theme-name {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .settings-panel__theme-name--active {
+    color: var(--accent-primary);
+    font-weight: var(--font-weight-medium);
   }
 </style>

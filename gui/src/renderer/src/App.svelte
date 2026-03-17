@@ -17,6 +17,7 @@
   import { initSendQueueStore } from './stores/send-queue.svelte'
   import { initBatteryStore } from './stores/battery.svelte'
   import { settings, initSettingsStore } from './stores/settings.svelte'
+  import { getThemeById, applyTheme } from './lib/themes'
   import { t } from './stores/i18n.svelte'
   import StatusIndicator from './components/StatusIndicator.svelte'
   import ConversationList from './components/ConversationList.svelte'
@@ -170,6 +171,17 @@
     showGallery = false
   }
 
+  /** Open a non-SMS panel: close other extras, deselect any thread so
+   *  clicking any conversation (even the previously selected one) will
+   *  trigger the $effect that closes the panel and shows the thread. */
+  function openExtraPanel(setter: () => void): void {
+    closeExtras()
+    setter()
+    selectConversation(null)
+    loadThread(null)
+    exitCompose()
+  }
+
   const isEnhancedMode = $derived(connection.stateContext?.peerClientType === 'fosslink')
   const versionIncompatible = $derived(
     connection.stateContext?.versionCompatible === false &&
@@ -219,6 +231,12 @@
   function handleTelIncoming(phoneNumber: string): void {
     telDialNumber = phoneNumber
   }
+
+  // Apply theme on load and whenever it changes
+  applyTheme(getThemeById(settings.theme))
+  $effect(() => {
+    applyTheme(getThemeById(settings.theme))
+  })
 
   onMount(() => {
     initSettingsStore()
@@ -341,7 +359,7 @@
           <button
             class="sidebar__icon-btn"
             class:sidebar__icon-btn--active={showFindPhone}
-            onclick={() => { const opening = !showFindPhone; closeExtras(); showFindPhone = opening; if (opening) exitCompose() }}
+            onclick={() => { if (showFindPhone) { showFindPhone = false } else { openExtraPanel(() => { showFindPhone = true }) } }}
             title={t('app.findPhone')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18">
@@ -355,7 +373,7 @@
             <button
               class="sidebar__icon-btn"
               class:sidebar__icon-btn--active={showGallery}
-              onclick={() => { const opening = !showGallery; closeExtras(); showGallery = opening; if (opening) exitCompose() }}
+              onclick={() => { if (showGallery) { showGallery = false } else { openExtraPanel(() => { showGallery = true }) } }}
               title={t('app.gallery')}
             >
               <svg viewBox="0 0 24 24" width="18" height="18">
@@ -367,7 +385,7 @@
             </button>
             <button
               class="sidebar__icon-btn"
-              onclick={() => { closeExtras(); showShareUrl = true }}
+              onclick={() => { openExtraPanel(() => { showShareUrl = true }) }}
               title={t('app.shareUrl')}
             >
               <svg viewBox="0 0 24 24" width="18" height="18">
@@ -381,7 +399,7 @@
           <button
             class="sidebar__icon-btn"
             class:sidebar__icon-btn--active={showSettings}
-            onclick={() => { const opening = !showSettings; closeExtras(); showSettings = opening; if (opening) exitCompose() }}
+            onclick={() => { if (showSettings) { showSettings = false } else { openExtraPanel(() => { showSettings = true }) } }}
             title={t('app.settings')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18">
@@ -545,9 +563,11 @@
 
   .main-panel {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     background-color: var(--bg-primary);
+    overflow: hidden;
   }
 
   .main-panel__empty {

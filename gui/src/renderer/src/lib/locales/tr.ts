@@ -83,6 +83,10 @@ export const tr: Record<string, string> = {
   'messages.compose': 'Bir mesaj yazın...',
   'messages.send': 'Mesaj gönder',
   'messages.emoji': 'Emoji',
+  'messages.attach': 'Dosya ekle',
+  'messages.removeAttachment': 'Eki kaldır',
+  'messages.attachmentTooLarge': 'Toplam boyut MMS sınırını aşıyor. Mesaj gönderilemeyebilir.',
+  'messages.attachmentTooMany': 'En fazla 10 ek izin verilir',
 
   // Export
   'export.tooltip': 'Konuşmayı dışa aktar',
@@ -117,6 +121,8 @@ export const tr: Record<string, string> = {
   'settings.waitingDevice': 'Cihaz bekleniyor...',
   'settings.ipAddress': 'IP Adresi',
   'settings.type': 'Tür',
+  'settings.service': 'Servis',
+  'settings.storage': 'Boş alan',
   'settings.statusConnected': 'Bağlı',
   'settings.statusReconnecting': 'Yeniden bağlanıyor',
   'settings.statusDisconnected': 'Bağlantı kesildi',
@@ -124,8 +130,14 @@ export const tr: Record<string, string> = {
   'settings.desktopNotifications': 'Masaüstü bildirimleri',
   'settings.flashTaskbar': 'Yeni mesajda görev çubuğunu yanıp söndür',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Bağlantı önizlemelerini göster',
+
+  // Language
   'settings.language': 'Dil',
   'settings.languageAuto': 'Otomatik (sistemden algıla)',
+
+  // Theme
+  'settings.theme': 'Tema',
 
   // Updates
   'updates.title': 'Güncellemeler',
@@ -170,7 +182,7 @@ export const tr: Record<string, string> = {
   // About dialog
   'about.close': 'Kapat',
   'about.name': 'FossLink',
-  'about.version': 'Sürüm 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 Brian Hanson tarafından',
   'about.releasedUnder': 'Lisans altında yayınlanmıştır:',
   'about.mitLicense': 'MIT Lisansı',
@@ -179,7 +191,88 @@ export const tr: Record<string, string> = {
   'about.electronDesc': 'çapraz platform masaüstü çerçevesi',
   'about.svelteDesc': 'reaktif kullanıcı arayüzü çerçevesi',
   'about.sourceAvailable': 'Tam lisans ve kaynak kodu şurada mevcuttur',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Bu yazılım açık kaynak ruhuyla, hayatınızı biraz daha kolaylaştırması umuduyla sunulmuştur.',
+
+  // Dial confirmation
+  'dial.confirm': 'Telefonunuzdan {number} numarasını arayın?',
+  'dial.ok': 'Tamam',
+  'dial.cancel': 'İptal',
+  'dial.callBtn': 'Ara',
+
+  // URL sharing
+  'app.shareUrl': 'Telefonda URL aç',
+  'shareUrl.title': 'Telefonda URL aç',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'İptal',
+  'shareUrl.share': 'Paylaş',
+  'shareUrl.invalidUrl': 'http:// veya https:// ile başlayan geçerli bir URL girin',
+
+  // Resync
+  'settings.resyncBtn': 'Yeniden senkronize et',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'Uygulama güncellemesi gerekli',
+  'version.companionUpdateDesc': 'Telefonunuzdaki FossLink uygulaması (v{peerVersion}) bu FossLink Desktop sürümüyle (v{desktopVersion}) uyumlu değil. Lütfen uygulamayı güncelleyin.',
+  'version.desktopUpdateRequired': 'Masaüstü güncellemesi gerekli',
+  'version.desktopUpdateDesc': 'Bu FossLink Desktop sürümü (v{desktopVersion}) telefonunuzdaki FossLink uygulamasıyla (v{peerVersion}) uyumlu değil. Lütfen FossLink Desktop\'ı güncelleyin.',
+  'version.updateCompanion': 'Uygulamayı güncelle',
+  'version.downloadUpdate': 'Güncellemeyi indir',
+  'version.orScanQR': 'Veya en son sürümü indirmek için telefonunuzla bu QR kodunu tarayın:',
+  'version.sentToPhone': 'Güncelleme isteği telefona gönderildi',
+
+  // Storage analyzer
+  'storage.title': 'Depolama Analizörü',
+  'storage.analyzing': 'Telefon depolaması analiz ediliyor...',
+  'storage.analyzeBtn': 'Depolamayı analiz et',
+  'storage.close': 'Kapat',
+  'storage.free': '{total} GB\'den {free} GB boş',
+  'storage.error': 'Depolama analizi başarısız',
+  'storage.noRoot': 'Ayrıntılı analiz için telefonunuzda Root entegrasyonunu etkinleştirin.',
+
+  // Extras section
+  'extras.title': 'Ekstralar',
+  'extras.storageTitle': 'Depolama Gezgini',
+  'extras.storageSubtitle': 'Depolama kullanımını analiz et',
+  'extras.filesTitle': 'Telefon Dosyaları',
+  'extras.filesSubtitle': 'Dosya sistemini gözat',
+  'extras.filesMounted': 'Bağlı',
+  'extras.migrationTitle': 'Kişi Taşıma',
+  'extras.migrationSubtitle': 'Cihaz kişilerini Google\'a taşı',
+
+  // Contact migration
+  'migration.title': 'Kişi Taşıma',
+  'migration.intro': 'Cihazınızda veya SIM kartınızda kayıtlı olup Google Kişiler\'e yedeklenmemiş kişileri bulun ve taşıyın.',
+  'migration.scanBtn': 'Cihaz kişilerini tara',
+  'migration.scanning': 'Telefondaki kişiler taranıyor...',
+  'migration.found': 'Yalnızca cihazda {count} kişi bulundu',
+  'migration.migrateTo': 'Taşınacak yer: {account}',
+  'migration.noGoogle': 'Telefonda Google hesabı bulunamadı.',
+  'migration.selectAll': 'Tümünü seç ({count})',
+  'migration.migrateBtn': '{count} kişiyi Google\'a taşı',
+  'migration.migrating': 'Kişiler taşınıyor...',
+  'migration.success': '{count} kişi başarıyla taşındı.',
+  'migration.failed': '{count} kişi başarısız oldu.',
+  'migration.allGood': 'Tüm kişiler zaten Google\'da yedeklenmiş.',
+  'migration.done': 'Bitti',
+  'migration.retry': 'Tekrar dene',
+
+  // Gallery
+  'app.gallery': 'Telefon Galerisi',
+  'gallery.title': 'Telefon Galerisi',
+  'gallery.close': 'Galeriyi kapat',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Ekran görüntüleri',
+  'gallery.viewFolders': 'Klasörler',
+  'gallery.viewAll': 'Tümü',
+  'gallery.sizeSmall': 'Küçük küçük resimler',
+  'gallery.sizeLarge': 'Büyük küçük resimler',
+  'gallery.toggleHidden': 'Gizli dosyaları göster/gizle',
+  'gallery.scanning': 'Telefon galerisi taranıyor...',
+  'gallery.retry': 'Tekrar dene',
+  'gallery.empty': 'Medya bulunamadı',
+  'gallery.noFolders': 'Klasör bulunamadı',
 
   // Notification
   'notification.newMessage': 'Yeni mesaj alındı',

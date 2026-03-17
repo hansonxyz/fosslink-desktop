@@ -83,6 +83,10 @@ export const ru: Record<string, string> = {
   'messages.compose': 'Введите сообщение...',
   'messages.send': 'Отправить сообщение',
   'messages.emoji': 'Эмодзи',
+  'messages.attach': 'Прикрепить файл',
+  'messages.removeAttachment': 'Удалить вложение',
+  'messages.attachmentTooLarge': 'Общий размер превышает лимит MMS. Сообщение может не отправиться.',
+  'messages.attachmentTooMany': 'Максимум 10 вложений',
 
   // Export
   'export.tooltip': 'Экспортировать беседу',
@@ -117,6 +121,8 @@ export const ru: Record<string, string> = {
   'settings.waitingDevice': 'Ожидание устройства...',
   'settings.ipAddress': 'IP-адрес',
   'settings.type': 'Тип',
+  'settings.service': 'Сервис',
+  'settings.storage': 'Свободно',
   'settings.statusConnected': 'Подключено',
   'settings.statusReconnecting': 'Переподключение',
   'settings.statusDisconnected': 'Отключено',
@@ -124,8 +130,14 @@ export const ru: Record<string, string> = {
   'settings.desktopNotifications': 'Уведомления на рабочем столе',
   'settings.flashTaskbar': 'Мигание панели задач при новом сообщении',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Показывать превью ссылок',
+
+  // Language
   'settings.language': 'Язык',
   'settings.languageAuto': 'Авто (определить по системе)',
+
+  // Theme
+  'settings.theme': 'Тема',
 
   // Updates
   'updates.title': 'Обновления',
@@ -170,7 +182,7 @@ export const ru: Record<string, string> = {
   // About dialog
   'about.close': 'Закрыть',
   'about.name': 'FossLink',
-  'about.version': 'Версия 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026, Brian Hanson',
   'about.releasedUnder': 'Выпущено под лицензией',
   'about.mitLicense': 'Лицензия MIT',
@@ -179,7 +191,88 @@ export const ru: Record<string, string> = {
   'about.electronDesc': 'кроссплатформенный десктопный фреймворк',
   'about.svelteDesc': 'реактивный UI-фреймворк',
   'about.sourceAvailable': 'Полная лицензия и исходный код доступны на',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Это программное обеспечение предоставлено в духе открытого исходного кода, в надежде сделать вашу жизнь немного проще.',
+
+  // Dial confirmation
+  'dial.confirm': 'Позвонить на {number} с телефона?',
+  'dial.ok': 'ОК',
+  'dial.cancel': 'Отмена',
+  'dial.callBtn': 'Позвонить',
+
+  // URL sharing
+  'app.shareUrl': 'Открыть URL на телефоне',
+  'shareUrl.title': 'Открыть URL на телефоне',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'Отмена',
+  'shareUrl.share': 'Поделиться',
+  'shareUrl.invalidUrl': 'Введите корректный URL, начинающийся с http:// или https://',
+
+  // Resync
+  'settings.resyncBtn': 'Пересинхронизировать',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'Требуется обновление приложения',
+  'version.companionUpdateDesc': 'Приложение FossLink на вашем телефоне (v{peerVersion}) несовместимо с этой версией FossLink Desktop (v{desktopVersion}). Обновите приложение.',
+  'version.desktopUpdateRequired': 'Требуется обновление десктопа',
+  'version.desktopUpdateDesc': 'Эта версия FossLink Desktop (v{desktopVersion}) несовместима с приложением FossLink на вашем телефоне (v{peerVersion}). Обновите FossLink Desktop.',
+  'version.updateCompanion': 'Обновить приложение',
+  'version.downloadUpdate': 'Скачать обновление',
+  'version.orScanQR': 'Или отсканируйте QR-код на телефоне для загрузки последней версии:',
+  'version.sentToPhone': 'Запрос на обновление отправлен на телефон',
+
+  // Storage analyzer
+  'storage.title': 'Анализатор хранилища',
+  'storage.analyzing': 'Анализ хранилища телефона...',
+  'storage.analyzeBtn': 'Анализировать хранилище',
+  'storage.close': 'Закрыть',
+  'storage.free': '{free} ГБ свободно из {total} ГБ',
+  'storage.error': 'Ошибка анализа хранилища',
+  'storage.noRoot': 'Включите root-интеграцию на телефоне для подробного анализа.',
+
+  // Extras section
+  'extras.title': 'Дополнительно',
+  'extras.storageTitle': 'Обзор хранилища',
+  'extras.storageSubtitle': 'Анализ использования хранилища',
+  'extras.filesTitle': 'Файлы телефона',
+  'extras.filesSubtitle': 'Обзор файловой системы',
+  'extras.filesMounted': 'Подключено',
+  'extras.migrationTitle': 'Миграция контактов',
+  'extras.migrationSubtitle': 'Перенос контактов в Google',
+
+  // Contact migration
+  'migration.title': 'Миграция контактов',
+  'migration.intro': 'Найдите контакты на устройстве или SIM, не сохранённые в Google Contacts, и перенесите их.',
+  'migration.scanBtn': 'Найти контакты устройства',
+  'migration.scanning': 'Сканирование контактов на телефоне...',
+  'migration.found': '{count} контактов найдено только на устройстве',
+  'migration.migrateTo': 'Перенести в: {account}',
+  'migration.noGoogle': 'Аккаунт Google не найден на телефоне.',
+  'migration.selectAll': 'Выбрать все ({count})',
+  'migration.migrateBtn': 'Перенести {count} контактов в Google',
+  'migration.migrating': 'Перенос контактов...',
+  'migration.success': '{count} контактов успешно перенесено.',
+  'migration.failed': '{count} контактов не удалось перенести.',
+  'migration.allGood': 'Все контакты уже сохранены в Google.',
+  'migration.done': 'Готово',
+  'migration.retry': 'Повторить',
+
+  // Gallery
+  'app.gallery': 'Галерея телефона',
+  'gallery.title': 'Галерея телефона',
+  'gallery.close': 'Закрыть галерею',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Скриншоты',
+  'gallery.viewFolders': 'Папки',
+  'gallery.viewAll': 'Все',
+  'gallery.sizeSmall': 'Маленькие миниатюры',
+  'gallery.sizeLarge': 'Большие миниатюры',
+  'gallery.toggleHidden': 'Показать скрытые файлы',
+  'gallery.scanning': 'Сканирование галереи телефона...',
+  'gallery.retry': 'Повторить',
+  'gallery.empty': 'Медиа не найдено',
+  'gallery.noFolders': 'Папки не найдены',
 
   // Notification
   'notification.newMessage': 'Получено новое сообщение',

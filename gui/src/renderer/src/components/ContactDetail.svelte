@@ -7,9 +7,10 @@
     contact: ContactRow
     avatarPhoto: string | null
     onClose: () => void
+    onDial?: (phoneNumber: string) => void
   }
 
-  let { contact, avatarPhoto, onClose }: Props = $props()
+  let { contact, avatarPhoto, onClose, onDial }: Props = $props()
 
   function handleBackdropClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) {
@@ -120,6 +121,13 @@
               <span class="dialog__primary">{formatPhone(phone.number)}</span>
               <span class="dialog__type">{formatType(phone.type)}</span>
             </div>
+            {#if onDial}
+              <button class="dialog__call-btn" onclick={() => onDial(phone.number)} title="Call {formatPhone(phone.number)}">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path fill="currentColor" d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
+                </svg>
+              </button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -327,6 +335,27 @@
     font-size: var(--font-size-xs);
     color: var(--text-muted);
     text-transform: capitalize;
+  }
+
+  .dialog__call-btn {
+    flex-shrink: 0;
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+  }
+
+  .dialog__call-btn:hover {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background-color: var(--bg-hover);
   }
 
   .dialog__account {

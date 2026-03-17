@@ -4,6 +4,7 @@
   }
 
   import { t } from '../stores/i18n.svelte'
+  import { PLAY_STORE_URL, GITHUB_DESKTOP_URL } from '../lib/links'
 
   let { onClose }: Props = $props()
 
@@ -54,7 +55,12 @@
 
       <p class="about-dialog__source">
         {t('about.sourceAvailable')}<br>
-        <a href="https://github.com/hansonxyz/fosslink" target="_blank" rel="noopener noreferrer">github.com/hansonxyz/fosslink</a>
+        <a href={GITHUB_DESKTOP_URL} target="_blank" rel="noopener noreferrer">github.com/hansonxyz/fosslink-desktop</a>
+      </p>
+
+      <p class="about-dialog__source">
+        {t('about.androidApp')}
+        <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">{t('about.googlePlay')}</a>
       </p>
 
       <p class="about-dialog__tagline">

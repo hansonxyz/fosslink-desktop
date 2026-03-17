@@ -83,6 +83,10 @@ export const zh: Record<string, string> = {
   'messages.compose': '输入消息...',
   'messages.send': '发送消息',
   'messages.emoji': '表情',
+  'messages.attach': '添加附件',
+  'messages.removeAttachment': '移除附件',
+  'messages.attachmentTooLarge': '总大小超出彩信限制，消息可能发送失败。',
+  'messages.attachmentTooMany': '最多允许10个附件',
 
   // Export
   'export.tooltip': '导出会话',
@@ -117,6 +121,8 @@ export const zh: Record<string, string> = {
   'settings.waitingDevice': '等待设备...',
   'settings.ipAddress': 'IP 地址',
   'settings.type': '类型',
+  'settings.service': '服务',
+  'settings.storage': '可用存储',
   'settings.statusConnected': '已连接',
   'settings.statusReconnecting': '正在重新连接',
   'settings.statusDisconnected': '未连接',
@@ -124,8 +130,14 @@ export const zh: Record<string, string> = {
   'settings.desktopNotifications': '桌面通知',
   'settings.flashTaskbar': '收到新消息时闪烁任务栏',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': '显示链接预览',
+
+  // Language
   'settings.language': '语言',
   'settings.languageAuto': '自动（从系统检测）',
+
+  // Theme
+  'settings.theme': '主题',
 
   // Updates
   'updates.title': '更新',
@@ -170,7 +182,7 @@ export const zh: Record<string, string> = {
   // About dialog
   'about.close': '关闭',
   'about.name': 'FossLink',
-  'about.version': '版本 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 年，Brian Hanson',
   'about.releasedUnder': '基于以下许可证发布：',
   'about.mitLicense': 'MIT 许可证',
@@ -179,7 +191,88 @@ export const zh: Record<string, string> = {
   'about.electronDesc': '跨平台桌面框架',
   'about.svelteDesc': '响应式 UI 框架',
   'about.sourceAvailable': '完整许可证和源代码可在此获取：',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': '本软件秉承开源精神提供，希望能让您的生活更加便利。',
+
+  // Dial confirmation
+  'dial.confirm': '在手机上拨打 {number}？',
+  'dial.ok': '确定',
+  'dial.cancel': '取消',
+  'dial.callBtn': '拨打',
+
+  // URL sharing
+  'app.shareUrl': '在手机上打开链接',
+  'shareUrl.title': '在手机上打开链接',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': '取消',
+  'shareUrl.share': '分享',
+  'shareUrl.invalidUrl': '请输入以 http:// 或 https:// 开头的有效网址',
+
+  // Resync
+  'settings.resyncBtn': '重新同步',
+
+  // Version compatibility
+  'version.companionUpdateRequired': '需要更新配套应用',
+  'version.companionUpdateDesc': '您手机上的 FossLink 应用 (v{peerVersion}) 与此版本的 FossLink Desktop (v{desktopVersion}) 不兼容。请更新应用。',
+  'version.desktopUpdateRequired': '需要更新桌面版',
+  'version.desktopUpdateDesc': '此版本的 FossLink Desktop (v{desktopVersion}) 与您手机上的 FossLink 应用 (v{peerVersion}) 不兼容。请更新 FossLink Desktop。',
+  'version.updateCompanion': '更新配套应用',
+  'version.downloadUpdate': '下载更新',
+  'version.orScanQR': '或在手机上扫描此二维码下载最新版本：',
+  'version.sentToPhone': '更新请求已发送到手机',
+
+  // Storage analyzer
+  'storage.title': '存储分析器',
+  'storage.analyzing': '正在分析手机存储...',
+  'storage.analyzeBtn': '分析存储',
+  'storage.close': '关闭',
+  'storage.free': '{total} GB 中有 {free} GB 可用',
+  'storage.error': '存储分析失败',
+  'storage.noRoot': '在手机上启用 Root 集成以获取详细分析。',
+
+  // Extras section
+  'extras.title': '附加功能',
+  'extras.storageTitle': '存储浏览器',
+  'extras.storageSubtitle': '分析存储使用情况',
+  'extras.filesTitle': '手机文件',
+  'extras.filesSubtitle': '浏览文件系统',
+  'extras.filesMounted': '已挂载',
+  'extras.migrationTitle': '联系人迁移',
+  'extras.migrationSubtitle': '将设备联系人移至 Google',
+
+  // Contact migration
+  'migration.title': '联系人迁移',
+  'migration.intro': '查找存储在设备或 SIM 卡上未备份到 Google 通讯录的联系人，并进行迁移。',
+  'migration.scanBtn': '扫描设备联系人',
+  'migration.scanning': '正在扫描手机联系人...',
+  'migration.found': '找到 {count} 个仅存在于设备上的联系人',
+  'migration.migrateTo': '迁移到：{account}',
+  'migration.noGoogle': '手机上未找到 Google 账户。',
+  'migration.selectAll': '全选 ({count})',
+  'migration.migrateBtn': '将 {count} 个联系人迁移到 Google',
+  'migration.migrating': '正在迁移联系人...',
+  'migration.success': '{count} 个联系人迁移成功。',
+  'migration.failed': '{count} 个联系人迁移失败。',
+  'migration.allGood': '所有联系人已备份到 Google。',
+  'migration.done': '完成',
+  'migration.retry': '重试',
+
+  // Gallery
+  'app.gallery': '手机相册',
+  'gallery.title': '手机相册',
+  'gallery.close': '关闭相册',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': '截图',
+  'gallery.viewFolders': '文件夹',
+  'gallery.viewAll': '全部',
+  'gallery.sizeSmall': '小缩略图',
+  'gallery.sizeLarge': '大缩略图',
+  'gallery.toggleHidden': '切换隐藏文件',
+  'gallery.scanning': '正在扫描手机相册...',
+  'gallery.retry': '重试',
+  'gallery.empty': '未找到媒体文件',
+  'gallery.noFolders': '未找到文件夹',
 
   // Notification
   'notification.newMessage': '收到新消息',

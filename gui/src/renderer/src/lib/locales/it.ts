@@ -80,6 +80,10 @@ export const it: Record<string, string> = {
   'messages.compose': 'Scrivi un messaggio...',
   'messages.send': 'Invia messaggio',
   'messages.emoji': 'Emoji',
+  'messages.attach': 'Allega file',
+  'messages.removeAttachment': 'Rimuovi allegato',
+  'messages.attachmentTooLarge': 'La dimensione totale supera il limite MMS. Il messaggio potrebbe fallire.',
+  'messages.attachmentTooMany': 'Massimo 10 allegati consentiti',
 
   // Export
   'export.tooltip': 'Esporta conversazione',
@@ -114,6 +118,8 @@ export const it: Record<string, string> = {
   'settings.waitingDevice': 'In attesa del dispositivo...',
   'settings.ipAddress': 'Indirizzo IP',
   'settings.type': 'Tipo',
+  'settings.service': 'Servizio',
+  'settings.storage': 'Spazio libero',
   'settings.statusConnected': 'Connesso',
   'settings.statusReconnecting': 'Riconnessione',
   'settings.statusDisconnected': 'Disconnesso',
@@ -121,8 +127,14 @@ export const it: Record<string, string> = {
   'settings.desktopNotifications': 'Notifiche desktop',
   'settings.flashTaskbar': 'Lampeggia barra delle applicazioni per nuovo messaggio',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Mostra anteprime link',
+
+  // Language
   'settings.language': 'Lingua',
   'settings.languageAuto': 'Automatica (rileva dal sistema)',
+
+  // Theme
+  'settings.theme': 'Tema',
 
   // Updates
   'updates.title': 'Aggiornamenti',
@@ -167,7 +179,7 @@ export const it: Record<string, string> = {
   // About dialog
   'about.close': 'Chiudi',
   'about.name': 'FossLink',
-  'about.version': 'Versione 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 di Brian Hanson',
   'about.releasedUnder': 'Rilasciato sotto la',
   'about.mitLicense': 'Licenza MIT',
@@ -176,7 +188,88 @@ export const it: Record<string, string> = {
   'about.electronDesc': 'framework desktop multipiattaforma',
   'about.svelteDesc': 'framework UI reattivo',
   'about.sourceAvailable': 'Licenza completa e codice sorgente disponibili su',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Questo software è stato creato nello spirito dell\'open source, nella speranza di rendere la tua vita un po\' più semplice.',
+
+  // Dial confirmation
+  'dial.confirm': 'Chiamare {number} sul tuo telefono?',
+  'dial.ok': 'OK',
+  'dial.cancel': 'Annulla',
+  'dial.callBtn': 'Chiama',
+
+  // URL sharing
+  'app.shareUrl': 'Apri URL sul telefono',
+  'shareUrl.title': 'Apri URL sul telefono',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'Annulla',
+  'shareUrl.share': 'Condividi',
+  'shareUrl.invalidUrl': 'Inserisci un URL valido che inizia con http:// o https://',
+
+  // Resync
+  'settings.resyncBtn': 'Risincronizza',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'Aggiornamento app richiesto',
+  'version.companionUpdateDesc': 'L\'app FossLink del tuo telefono (v{peerVersion}) non è compatibile con questa versione di FossLink Desktop (v{desktopVersion}). Aggiorna l\'app.',
+  'version.desktopUpdateRequired': 'Aggiornamento desktop richiesto',
+  'version.desktopUpdateDesc': 'Questa versione di FossLink Desktop (v{desktopVersion}) non è compatibile con l\'app FossLink del tuo telefono (v{peerVersion}). Aggiorna FossLink Desktop.',
+  'version.updateCompanion': 'Aggiorna app',
+  'version.downloadUpdate': 'Scarica aggiornamento',
+  'version.orScanQR': 'Oppure scansiona questo codice QR sul tuo telefono per scaricare l\'ultima versione:',
+  'version.sentToPhone': 'Richiesta di aggiornamento inviata al telefono',
+
+  // Storage analyzer
+  'storage.title': 'Analizzatore di archiviazione',
+  'storage.analyzing': 'Analisi dell\'archiviazione del telefono...',
+  'storage.analyzeBtn': 'Analizza archiviazione',
+  'storage.close': 'Chiudi',
+  'storage.free': '{free} GB liberi di {total} GB',
+  'storage.error': 'Analisi dell\'archiviazione fallita',
+  'storage.noRoot': 'Attiva l\'integrazione root sul tuo telefono per un\'analisi dettagliata.',
+
+  // Extras section
+  'extras.title': 'Extra',
+  'extras.storageTitle': 'Esplora archiviazione',
+  'extras.storageSubtitle': 'Analizza l\'uso dello spazio',
+  'extras.filesTitle': 'File del telefono',
+  'extras.filesSubtitle': 'Sfoglia il file system',
+  'extras.filesMounted': 'Montato',
+  'extras.migrationTitle': 'Migrazione contatti',
+  'extras.migrationSubtitle': 'Sposta contatti del dispositivo su Google',
+
+  // Contact migration
+  'migration.title': 'Migrazione contatti',
+  'migration.intro': 'Trova i contatti memorizzati sul dispositivo o SIM che non sono salvati in Google Contacts e migrali.',
+  'migration.scanBtn': 'Cerca contatti del dispositivo',
+  'migration.scanning': 'Scansione contatti sul telefono...',
+  'migration.found': '{count} contatti trovati solo sul dispositivo',
+  'migration.migrateTo': 'Migra a: {account}',
+  'migration.noGoogle': 'Nessun account Google trovato sul telefono.',
+  'migration.selectAll': 'Seleziona tutti ({count})',
+  'migration.migrateBtn': 'Migra {count} contatti su Google',
+  'migration.migrating': 'Migrazione contatti...',
+  'migration.success': '{count} contatti migrati con successo.',
+  'migration.failed': '{count} contatti falliti.',
+  'migration.allGood': 'Tutti i contatti sono già salvati in Google.',
+  'migration.done': 'Fatto',
+  'migration.retry': 'Riprova',
+
+  // Gallery
+  'app.gallery': 'Galleria del telefono',
+  'gallery.title': 'Galleria del telefono',
+  'gallery.close': 'Chiudi galleria',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Screenshot',
+  'gallery.viewFolders': 'Cartelle',
+  'gallery.viewAll': 'Tutto',
+  'gallery.sizeSmall': 'Miniature piccole',
+  'gallery.sizeLarge': 'Miniature grandi',
+  'gallery.toggleHidden': 'Mostra/nascondi file nascosti',
+  'gallery.scanning': 'Scansione della galleria del telefono...',
+  'gallery.retry': 'Riprova',
+  'gallery.empty': 'Nessun media trovato',
+  'gallery.noFolders': 'Nessuna cartella trovata',
 
   // Notification
   'notification.newMessage': 'Nuovo messaggio ricevuto',

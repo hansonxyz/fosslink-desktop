@@ -19,7 +19,7 @@ export interface GalleryItem {
 type ScanState = 'idle' | 'scanning' | 'ready' | 'error'
 type ThumbnailState = 'idle' | 'loading' | 'ready' | 'failed'
 type DownloadState = 'idle' | 'downloading' | 'ready'
-export type ViewMode = 'dcim' | 'folders' | 'all'
+export type ViewMode = 'dcim' | 'screenshots' | 'folders' | 'all'
 export type SizeMode = 'thumbnail' | 'mosaic'
 
 interface DownloadEntry {
@@ -36,6 +36,10 @@ let hideHidden: boolean = $state(true)
 let selectedFolder: string | null = $state(null)
 const thumbnailStates: Record<string, ThumbnailState> = $state({})
 const downloadStates: Record<string, DownloadEntry> = $state({})
+
+// In-flight download promises (deduplication) and abort controllers
+const downloadPromises = new Map<string, Promise<string>>()
+const downloadAbortControllers = new Map<string, AbortController>()
 
 /** Max concurrent thumbnail fetches to avoid overwhelming the connection */
 const MAX_CONCURRENT_THUMBS = 5
@@ -76,6 +80,8 @@ export function getFilteredItems(): GalleryItem[] {
   }
   if (viewMode === 'dcim') {
     result = result.filter((i) => i.folder.startsWith('DCIM'))
+  } else if (viewMode === 'screenshots') {
+    result = result.filter((i) => i.folder.includes('Screenshots'))
   } else if (viewMode === 'folders' && selectedFolder) {
     result = result.filter((i) => i.folder === selectedFolder)
   }
@@ -187,18 +193,64 @@ export async function requestFullFile(filePath: string, expectedSize: number = 0
     return getGalleryFileUrl(filePath)
   }
 
+  // Deduplicate: return existing in-flight promise
+  const existing = downloadPromises.get(filePath)
+  if (existing) return existing
+
+  const ac = new AbortController()
+  downloadAbortControllers.set(filePath, ac)
   downloadStates[filePath] = { state: 'downloading', progress: 0 }
 
-  try {
-    const result = (await window.api.invoke('gallery.download', {
-      path: filePath,
-      expectedSize,
-    })) as { localPath: string }
-    downloadStates[filePath] = { state: 'ready', progress: 100 }
-    return getGalleryFileUrl(filePath)
-  } catch (err) {
-    downloadStates[filePath] = { state: 'idle', progress: 0 }
-    throw err
+  const promise = (async () => {
+    try {
+      // Check abort before starting
+      if (ac.signal.aborted) throw new Error('Download cancelled')
+
+      const result = (await window.api.invoke('gallery.download', {
+        path: filePath,
+        expectedSize,
+      })) as { localPath: string }
+
+      if (ac.signal.aborted) throw new Error('Download cancelled')
+
+      downloadStates[filePath] = { state: 'ready', progress: 100 }
+      return getGalleryFileUrl(filePath)
+    } catch (err) {
+      if (!ac.signal.aborted) {
+        downloadStates[filePath] = { state: 'idle', progress: 0 }
+      }
+      throw err
+    } finally {
+      downloadPromises.delete(filePath)
+      downloadAbortControllers.delete(filePath)
+    }
+  })()
+
+  downloadPromises.set(filePath, promise)
+  return promise
+}
+
+/** Cancel a pending download for a file */
+export function cancelDownload(filePath: string): void {
+  const ac = downloadAbortControllers.get(filePath)
+  if (ac) {
+    ac.abort()
+    downloadAbortControllers.delete(filePath)
+    downloadPromises.delete(filePath)
+    // Reset state only if it was downloading
+    const current = downloadStates[filePath]
+    if (current?.state === 'downloading') {
+      downloadStates[filePath] = { state: 'idle', progress: 0 }
+    }
+  }
+}
+
+/** Cancel all pending downloads except the given file path */
+export function cancelOtherDownloads(keepFilePath: string): void {
+  for (const [path] of downloadAbortControllers) {
+    if (path !== keepFilePath) {
+      cancelDownload(path)
+    }
   }
 }
 

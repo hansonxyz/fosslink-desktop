@@ -83,6 +83,10 @@ export const hi: Record<string, string> = {
   'messages.compose': 'संदेश लिखें...',
   'messages.send': 'संदेश भेजें',
   'messages.emoji': 'इमोजी',
+  'messages.attach': 'फ़ाइल संलग्न करें',
+  'messages.removeAttachment': 'संलग्नक हटाएं',
+  'messages.attachmentTooLarge': 'कुल आकार MMS सीमा से अधिक है। संदेश विफल हो सकता है।',
+  'messages.attachmentTooMany': 'अधिकतम 10 संलग्नक अनुमत',
 
   // Export
   'export.tooltip': 'बातचीत निर्यात करें',
@@ -117,6 +121,8 @@ export const hi: Record<string, string> = {
   'settings.waitingDevice': 'डिवाइस की प्रतीक्षा...',
   'settings.ipAddress': 'IP पता',
   'settings.type': 'प्रकार',
+  'settings.service': 'सेवा',
+  'settings.storage': 'उपलब्ध स्टोरेज',
   'settings.statusConnected': 'कनेक्टेड',
   'settings.statusReconnecting': 'पुनः कनेक्ट हो रहा है',
   'settings.statusDisconnected': 'डिस्कनेक्टेड',
@@ -124,8 +130,14 @@ export const hi: Record<string, string> = {
   'settings.desktopNotifications': 'डेस्कटॉप सूचनाएँ',
   'settings.flashTaskbar': 'नए संदेश पर टास्कबार फ्लैश करें',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'लिंक प्रीव्यू दिखाएं',
+
+  // Language
   'settings.language': 'भाषा',
   'settings.languageAuto': 'स्वचालित (सिस्टम से पता लगाएँ)',
+
+  // Theme
+  'settings.theme': 'थीम',
 
   // Updates
   'updates.title': 'अपडेट',
@@ -170,7 +182,7 @@ export const hi: Record<string, string> = {
   // About dialog
   'about.close': 'बंद करें',
   'about.name': 'FossLink',
-  'about.version': 'संस्करण 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 Brian Hanson द्वारा',
   'about.releasedUnder': 'के तहत जारी',
   'about.mitLicense': 'MIT लाइसेंस',
@@ -179,7 +191,88 @@ export const hi: Record<string, string> = {
   'about.electronDesc': 'क्रॉस-प्लेटफ़ॉर्म डेस्कटॉप फ्रेमवर्क',
   'about.svelteDesc': 'रिएक्टिव UI फ्रेमवर्क',
   'about.sourceAvailable': 'पूर्ण लाइसेंस और स्रोत यहाँ उपलब्ध है',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'यह सॉफ़्टवेयर ओपन सोर्स की भावना से प्रदान किया गया है, इस आशा में कि यह आपके जीवन को थोड़ा आसान बना दे।',
+
+  // Dial confirmation
+  'dial.confirm': 'फ़ोन पर {number} को कॉल करें?',
+  'dial.ok': 'ठीक है',
+  'dial.cancel': 'रद्द करें',
+  'dial.callBtn': 'कॉल',
+
+  // URL sharing
+  'app.shareUrl': 'फ़ोन पर URL खोलें',
+  'shareUrl.title': 'फ़ोन पर URL खोलें',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'रद्द करें',
+  'shareUrl.share': 'शेयर',
+  'shareUrl.invalidUrl': 'http:// या https:// से शुरू होने वाला मान्य URL दर्ज करें',
+
+  // Resync
+  'settings.resyncBtn': 'पुन: सिंक करें',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'ऐप अपडेट आवश्यक',
+  'version.companionUpdateDesc': 'आपके फ़ोन का FossLink ऐप (v{peerVersion}) FossLink Desktop (v{desktopVersion}) के इस संस्करण के साथ संगत नहीं है। कृपया ऐप अपडेट करें।',
+  'version.desktopUpdateRequired': 'डेस्कटॉप अपडेट आवश्यक',
+  'version.desktopUpdateDesc': 'FossLink Desktop (v{desktopVersion}) का यह संस्करण आपके फ़ोन के FossLink ऐप (v{peerVersion}) के साथ संगत नहीं है। कृपया FossLink Desktop अपडेट करें।',
+  'version.updateCompanion': 'ऐप अपडेट करें',
+  'version.downloadUpdate': 'अपडेट डाउनलोड करें',
+  'version.orScanQR': 'या नवीनतम संस्करण डाउनलोड करने के लिए अपने फ़ोन पर यह QR कोड स्कैन करें:',
+  'version.sentToPhone': 'अपडेट अनुरोध फ़ोन पर भेजा गया',
+
+  // Storage analyzer
+  'storage.title': 'स्टोरेज विश्लेषक',
+  'storage.analyzing': 'फ़ोन स्टोरेज का विश्लेषण...',
+  'storage.analyzeBtn': 'स्टोरेज विश्लेषण',
+  'storage.close': 'बंद करें',
+  'storage.free': '{total} GB में से {free} GB उपलब्ध',
+  'storage.error': 'स्टोरेज विश्लेषण विफल',
+  'storage.noRoot': 'विस्तृत विश्लेषण के लिए अपने फ़ोन पर Root एकीकरण सक्षम करें।',
+
+  // Extras section
+  'extras.title': 'अतिरिक्त',
+  'extras.storageTitle': 'स्टोरेज एक्सप्लोरर',
+  'extras.storageSubtitle': 'स्टोरेज उपयोग का विश्लेषण',
+  'extras.filesTitle': 'फ़ोन फ़ाइलें',
+  'extras.filesSubtitle': 'फ़ाइल सिस्टम ब्राउज़ करें',
+  'extras.filesMounted': 'माउंट किया गया',
+  'extras.migrationTitle': 'संपर्क माइग्रेशन',
+  'extras.migrationSubtitle': 'डिवाइस संपर्कों को Google में ले जाएं',
+
+  // Contact migration
+  'migration.title': 'संपर्क माइग्रेशन',
+  'migration.intro': 'अपने डिवाइस या SIM पर संग्रहीत संपर्कों को खोजें जो Google Contacts में बैकअप नहीं हैं, और उन्हें माइग्रेट करें।',
+  'migration.scanBtn': 'डिवाइस संपर्क खोजें',
+  'migration.scanning': 'फ़ोन पर संपर्क स्कैन हो रहे हैं...',
+  'migration.found': 'केवल डिवाइस पर {count} संपर्क मिले',
+  'migration.migrateTo': 'माइग्रेट करें: {account}',
+  'migration.noGoogle': 'फ़ोन पर कोई Google खाता नहीं मिला।',
+  'migration.selectAll': 'सभी चुनें ({count})',
+  'migration.migrateBtn': '{count} संपर्कों को Google में माइग्रेट करें',
+  'migration.migrating': 'संपर्क माइग्रेट हो रहे हैं...',
+  'migration.success': '{count} संपर्क सफलतापूर्वक माइग्रेट हुए।',
+  'migration.failed': '{count} संपर्क विफल हुए।',
+  'migration.allGood': 'सभी संपर्क पहले से Google में बैकअप हैं।',
+  'migration.done': 'हो गया',
+  'migration.retry': 'पुनः प्रयास',
+
+  // Gallery
+  'app.gallery': 'फ़ोन गैलरी',
+  'gallery.title': 'फ़ोन गैलरी',
+  'gallery.close': 'गैलरी बंद करें',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'स्क्रीनशॉट',
+  'gallery.viewFolders': 'फ़ोल्डर',
+  'gallery.viewAll': 'सभी',
+  'gallery.sizeSmall': 'छोटे थंबनेल',
+  'gallery.sizeLarge': 'बड़े थंबनेल',
+  'gallery.toggleHidden': 'छिपी फ़ाइलें टॉगल करें',
+  'gallery.scanning': 'फ़ोन गैलरी स्कैन हो रही है...',
+  'gallery.retry': 'पुनः प्रयास',
+  'gallery.empty': 'कोई मीडिया नहीं मिला',
+  'gallery.noFolders': 'कोई फ़ोल्डर नहीं मिला',
 
   // Notification
   'notification.newMessage': 'नया संदेश प्राप्त हुआ',

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
+  import QRCode from 'qrcode'
   import { effectiveState, connection } from '../stores/connection.svelte'
   import {
     devices,
@@ -8,7 +10,15 @@
   } from '../stores/devices.svelte'
   import DeviceList from '../components/DeviceList.svelte'
   import { t } from '../stores/i18n.svelte'
-  import qrCodeImage from '../assets/fosslink-qr.png'
+  import { PLAY_STORE_URL } from '../lib/links'
+
+  let qrCodeImage = $state('')
+
+  onMount(() => {
+    void QRCode.toDataURL(PLAY_STORE_URL, { width: 320, margin: 1 }).then((url: string) => {
+      qrCodeImage = url
+    })
+  })
 
   const hasAnyDevices = $derived(
     devices.discovered.length > 0 || devices.pairedIds.length > 0,
@@ -82,7 +92,7 @@
           <span>{t('pairing.dontSeePhone')}</span>
           {t('pairing.installApp')}
           <a
-            href="https://github.com/hansonxyz/fosslink/releases"
+            href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
           >{t('pairing.companionApp')}</a>
@@ -102,16 +112,18 @@
           <p class="pairing-page__onboarding-text">
             {t('pairing.installDescription')}
           </p>
-          <img
-            class="pairing-page__onboarding-qr"
-            src={qrCodeImage}
-            alt={t('pairing.qrAlt')}
-            width="160"
-            height="160"
-          />
+          {#if qrCodeImage}
+            <img
+              class="pairing-page__onboarding-qr"
+              src={qrCodeImage}
+              alt={t('pairing.qrAlt')}
+              width="160"
+              height="160"
+            />
+          {/if}
           <a
             class="pairing-page__onboarding-link"
-            href="https://github.com/hansonxyz/fosslink/releases"
+            href={PLAY_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
           >

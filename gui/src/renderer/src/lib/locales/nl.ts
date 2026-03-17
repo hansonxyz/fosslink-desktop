@@ -83,6 +83,10 @@ export const nl: Record<string, string> = {
   'messages.compose': 'Typ een bericht...',
   'messages.send': 'Bericht verzenden',
   'messages.emoji': 'Emoji',
+  'messages.attach': 'Bestand bijvoegen',
+  'messages.removeAttachment': 'Bijlage verwijderen',
+  'messages.attachmentTooLarge': 'Totale grootte overschrijdt MMS-limiet. Bericht kan mislukken.',
+  'messages.attachmentTooMany': 'Maximaal 10 bijlagen toegestaan',
 
   // Export
   'export.tooltip': 'Gesprek exporteren',
@@ -117,6 +121,8 @@ export const nl: Record<string, string> = {
   'settings.waitingDevice': 'Wachten op apparaat...',
   'settings.ipAddress': 'IP-adres',
   'settings.type': 'Type',
+  'settings.service': 'Service',
+  'settings.storage': 'Opslag vrij',
   'settings.statusConnected': 'Verbonden',
   'settings.statusReconnecting': 'Opnieuw verbinden',
   'settings.statusDisconnected': 'Niet verbonden',
@@ -124,8 +130,14 @@ export const nl: Record<string, string> = {
   'settings.desktopNotifications': 'Bureaubladmeldingen',
   'settings.flashTaskbar': 'Taakbalk laten knipperen bij nieuw bericht',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Linkvoorbeelden tonen',
+
+  // Language
   'settings.language': 'Taal',
   'settings.languageAuto': 'Automatisch (detecteren van systeem)',
+
+  // Theme
+  'settings.theme': 'Thema',
 
   // Updates
   'updates.title': 'Updates',
@@ -170,7 +182,7 @@ export const nl: Record<string, string> = {
   // About dialog
   'about.close': 'Sluiten',
   'about.name': 'FossLink',
-  'about.version': 'Versie 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 door Brian Hanson',
   'about.releasedUnder': 'Uitgebracht onder de',
   'about.mitLicense': 'MIT-licentie',
@@ -179,7 +191,88 @@ export const nl: Record<string, string> = {
   'about.electronDesc': 'cross-platform desktopframework',
   'about.svelteDesc': 'reactief UI-framework',
   'about.sourceAvailable': 'Volledige licentie en broncode beschikbaar op',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Deze software is aangeboden in de geest van open source, in de hoop dat het je leven een beetje makkelijker maakt.',
+
+  // Dial confirmation
+  'dial.confirm': '{number} bellen op je telefoon?',
+  'dial.ok': 'OK',
+  'dial.cancel': 'Annuleren',
+  'dial.callBtn': 'Bellen',
+
+  // URL sharing
+  'app.shareUrl': 'URL openen op telefoon',
+  'shareUrl.title': 'URL openen op telefoon',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'Annuleren',
+  'shareUrl.share': 'Delen',
+  'shareUrl.invalidUrl': 'Voer een geldige URL in die begint met http:// of https://',
+
+  // Resync
+  'settings.resyncBtn': 'Opnieuw synchroniseren',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'App-update vereist',
+  'version.companionUpdateDesc': 'De FossLink-app op je telefoon (v{peerVersion}) is niet compatibel met deze versie van FossLink Desktop (v{desktopVersion}). Werk de app bij.',
+  'version.desktopUpdateRequired': 'Desktop-update vereist',
+  'version.desktopUpdateDesc': 'Deze versie van FossLink Desktop (v{desktopVersion}) is niet compatibel met de FossLink-app op je telefoon (v{peerVersion}). Werk FossLink Desktop bij.',
+  'version.updateCompanion': 'App bijwerken',
+  'version.downloadUpdate': 'Update downloaden',
+  'version.orScanQR': 'Of scan deze QR-code op je telefoon om de nieuwste versie te downloaden:',
+  'version.sentToPhone': 'Updateverzoek naar telefoon verzonden',
+
+  // Storage analyzer
+  'storage.title': 'Opslaganalyse',
+  'storage.analyzing': 'Telefoonopslag analyseren...',
+  'storage.analyzeBtn': 'Opslag analyseren',
+  'storage.close': 'Sluiten',
+  'storage.free': '{free} GB vrij van {total} GB',
+  'storage.error': 'Opslaganalyse mislukt',
+  'storage.noRoot': 'Schakel root-integratie in op je telefoon voor een gedetailleerde analyse.',
+
+  // Extras section
+  'extras.title': 'Extra\'s',
+  'extras.storageTitle': 'Opslagverkenner',
+  'extras.storageSubtitle': 'Opslaggebruik analyseren',
+  'extras.filesTitle': 'Telefoonbestanden',
+  'extras.filesSubtitle': 'Bestandssysteem verkennen',
+  'extras.filesMounted': 'Gekoppeld',
+  'extras.migrationTitle': 'Contactmigratie',
+  'extras.migrationSubtitle': 'Apparaatcontacten naar Google verplaatsen',
+
+  // Contact migration
+  'migration.title': 'Contactmigratie',
+  'migration.intro': 'Vind contacten die op je apparaat of SIM zijn opgeslagen en niet zijn geback-upt naar Google Contacts, en migreer ze.',
+  'migration.scanBtn': 'Apparaatcontacten zoeken',
+  'migration.scanning': 'Contacten op telefoon scannen...',
+  'migration.found': '{count} contacten alleen op het apparaat gevonden',
+  'migration.migrateTo': 'Migreren naar: {account}',
+  'migration.noGoogle': 'Geen Google-account gevonden op telefoon.',
+  'migration.selectAll': 'Alles selecteren ({count})',
+  'migration.migrateBtn': '{count} contacten naar Google migreren',
+  'migration.migrating': 'Contacten migreren...',
+  'migration.success': '{count} contacten succesvol gemigreerd.',
+  'migration.failed': '{count} contacten mislukt.',
+  'migration.allGood': 'Alle contacten zijn al geback-upt naar Google.',
+  'migration.done': 'Klaar',
+  'migration.retry': 'Opnieuw proberen',
+
+  // Gallery
+  'app.gallery': 'Telefoongalerij',
+  'gallery.title': 'Telefoongalerij',
+  'gallery.close': 'Galerij sluiten',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Schermafbeeldingen',
+  'gallery.viewFolders': 'Mappen',
+  'gallery.viewAll': 'Alles',
+  'gallery.sizeSmall': 'Kleine miniaturen',
+  'gallery.sizeLarge': 'Grote miniaturen',
+  'gallery.toggleHidden': 'Verborgen bestanden wisselen',
+  'gallery.scanning': 'Telefoongalerij scannen...',
+  'gallery.retry': 'Opnieuw proberen',
+  'gallery.empty': 'Geen media gevonden',
+  'gallery.noFolders': 'Geen mappen gevonden',
 
   // Notification
   'notification.newMessage': 'Nieuw bericht ontvangen',

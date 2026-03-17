@@ -83,6 +83,10 @@ export const ar: Record<string, string> = {
   'messages.compose': 'اكتب رسالة...',
   'messages.send': 'إرسال رسالة',
   'messages.emoji': 'رموز تعبيرية',
+  'messages.attach': 'إرفاق ملف',
+  'messages.removeAttachment': 'إزالة المرفق',
+  'messages.attachmentTooLarge': 'الحجم الإجمالي يتجاوز حد رسائل الوسائط. قد تفشل الرسالة.',
+  'messages.attachmentTooMany': 'الحد الأقصى 10 مرفقات',
 
   // Export
   'export.tooltip': 'تصدير المحادثة',
@@ -117,6 +121,8 @@ export const ar: Record<string, string> = {
   'settings.waitingDevice': 'في انتظار الجهاز...',
   'settings.ipAddress': 'عنوان IP',
   'settings.type': 'النوع',
+  'settings.service': 'الخدمة',
+  'settings.storage': 'التخزين المتاح',
   'settings.statusConnected': 'متصل',
   'settings.statusReconnecting': 'جارٍ إعادة الاتصال',
   'settings.statusDisconnected': 'غير متصل',
@@ -124,8 +130,14 @@ export const ar: Record<string, string> = {
   'settings.desktopNotifications': 'إشعارات سطح المكتب',
   'settings.flashTaskbar': 'وميض شريط المهام عند رسالة جديدة',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'عرض معاينة الروابط',
+
+  // Language
   'settings.language': 'اللغة',
   'settings.languageAuto': 'تلقائي (اكتشاف من النظام)',
+
+  // Theme
+  'settings.theme': 'السمة',
 
   // Updates
   'updates.title': 'التحديثات',
@@ -170,7 +182,7 @@ export const ar: Record<string, string> = {
   // About dialog
   'about.close': 'إغلاق',
   'about.name': 'FossLink',
-  'about.version': 'الإصدار 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 بواسطة Brian Hanson',
   'about.releasedUnder': 'صدر بموجب',
   'about.mitLicense': 'رخصة MIT',
@@ -179,7 +191,88 @@ export const ar: Record<string, string> = {
   'about.electronDesc': 'إطار عمل سطح مكتب متعدد المنصات',
   'about.svelteDesc': 'إطار عمل واجهة مستخدم تفاعلي',
   'about.sourceAvailable': 'الترخيص الكامل والمصدر متاح على',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'تم تقديم هذا البرنامج بروح المصدر المفتوح، على أمل أن يجعل حياتك أسهل قليلًا.',
+
+  // Dial confirmation
+  'dial.confirm': 'الاتصال بـ {number} من هاتفك؟',
+  'dial.ok': 'موافق',
+  'dial.cancel': 'إلغاء',
+  'dial.callBtn': 'اتصال',
+
+  // URL sharing
+  'app.shareUrl': 'فتح الرابط على الهاتف',
+  'shareUrl.title': 'فتح الرابط على الهاتف',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'إلغاء',
+  'shareUrl.share': 'مشاركة',
+  'shareUrl.invalidUrl': 'أدخل رابطاً صالحاً يبدأ بـ http:// أو https://',
+
+  // Resync
+  'settings.resyncBtn': 'إعادة المزامنة',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'يلزم تحديث التطبيق المرافق',
+  'version.companionUpdateDesc': 'تطبيق FossLink على هاتفك (v{peerVersion}) غير متوافق مع هذا الإصدار من FossLink Desktop (v{desktopVersion}). يرجى تحديث التطبيق.',
+  'version.desktopUpdateRequired': 'يلزم تحديث سطح المكتب',
+  'version.desktopUpdateDesc': 'هذا الإصدار من FossLink Desktop (v{desktopVersion}) غير متوافق مع تطبيق FossLink على هاتفك (v{peerVersion}). يرجى تحديث FossLink Desktop.',
+  'version.updateCompanion': 'تحديث التطبيق',
+  'version.downloadUpdate': 'تحميل التحديث',
+  'version.orScanQR': 'أو امسح رمز QR هذا على هاتفك لتحميل أحدث إصدار:',
+  'version.sentToPhone': 'تم إرسال طلب التحديث إلى الهاتف',
+
+  // Storage analyzer
+  'storage.title': 'محلل التخزين',
+  'storage.analyzing': 'جاري تحليل تخزين الهاتف...',
+  'storage.analyzeBtn': 'تحليل التخزين',
+  'storage.close': 'إغلاق',
+  'storage.free': '{free} جيجابايت متاح من {total} جيجابايت',
+  'storage.error': 'فشل تحليل التخزين',
+  'storage.noRoot': 'فعّل تكامل Root على هاتفك للحصول على تحليل مفصل.',
+
+  // Extras section
+  'extras.title': 'إضافات',
+  'extras.storageTitle': 'مستكشف التخزين',
+  'extras.storageSubtitle': 'تحليل استخدام التخزين',
+  'extras.filesTitle': 'ملفات الهاتف',
+  'extras.filesSubtitle': 'تصفح نظام الملفات',
+  'extras.filesMounted': 'مُركّب',
+  'extras.migrationTitle': 'نقل جهات الاتصال',
+  'extras.migrationSubtitle': 'نقل جهات الاتصال إلى Google',
+
+  // Contact migration
+  'migration.title': 'نقل جهات الاتصال',
+  'migration.intro': 'ابحث عن جهات الاتصال المخزنة على جهازك أو بطاقة SIM والتي لم يتم نسخها احتياطياً إلى Google وقم بنقلها.',
+  'migration.scanBtn': 'البحث عن جهات اتصال الجهاز',
+  'migration.scanning': 'جاري مسح جهات الاتصال على الهاتف...',
+  'migration.found': 'تم العثور على {count} جهة اتصال على الجهاز فقط',
+  'migration.migrateTo': 'النقل إلى: {account}',
+  'migration.noGoogle': 'لم يتم العثور على حساب Google على الهاتف.',
+  'migration.selectAll': 'تحديد الكل ({count})',
+  'migration.migrateBtn': 'نقل {count} جهة اتصال إلى Google',
+  'migration.migrating': 'جاري نقل جهات الاتصال...',
+  'migration.success': 'تم نقل {count} جهة اتصال بنجاح.',
+  'migration.failed': 'فشل نقل {count} جهة اتصال.',
+  'migration.allGood': 'جميع جهات الاتصال محفوظة بالفعل في Google.',
+  'migration.done': 'تم',
+  'migration.retry': 'إعادة المحاولة',
+
+  // Gallery
+  'app.gallery': 'معرض الهاتف',
+  'gallery.title': 'معرض الهاتف',
+  'gallery.close': 'إغلاق المعرض',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'لقطات الشاشة',
+  'gallery.viewFolders': 'المجلدات',
+  'gallery.viewAll': 'الكل',
+  'gallery.sizeSmall': 'صور مصغرة صغيرة',
+  'gallery.sizeLarge': 'صور مصغرة كبيرة',
+  'gallery.toggleHidden': 'إظهار/إخفاء الملفات المخفية',
+  'gallery.scanning': 'جاري مسح معرض الهاتف...',
+  'gallery.retry': 'إعادة المحاولة',
+  'gallery.empty': 'لم يتم العثور على وسائط',
+  'gallery.noFolders': 'لم يتم العثور على مجلدات',
 
   // Notification
   'notification.newMessage': 'تم استلام رسالة جديدة',

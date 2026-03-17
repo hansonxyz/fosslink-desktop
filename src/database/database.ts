@@ -563,6 +563,7 @@ export class DatabaseService {
         SELECT c.*,
           CASE WHEN EXISTS (
             SELECT 1 FROM messages m WHERE m.thread_id = c.thread_id AND m.type = 2
+              AND LOWER(TRIM(m.body)) != 'stop'
           ) THEN 1 ELSE 0 END AS has_outgoing
         FROM conversations c
         ORDER BY c.date DESC

@@ -80,6 +80,10 @@ export const fr: Record<string, string> = {
   'messages.compose': 'Saisissez un message...',
   'messages.send': 'Envoyer le message',
   'messages.emoji': 'Emoji',
+  'messages.attach': 'Joindre un fichier',
+  'messages.removeAttachment': 'Supprimer la pièce jointe',
+  'messages.attachmentTooLarge': 'La taille totale dépasse la limite MMS. Le message peut échouer.',
+  'messages.attachmentTooMany': 'Maximum 10 pièces jointes autorisées',
 
   // Export
   'export.tooltip': 'Exporter la conversation',
@@ -114,6 +118,8 @@ export const fr: Record<string, string> = {
   'settings.waitingDevice': 'En attente d\'un appareil...',
   'settings.ipAddress': 'Adresse IP',
   'settings.type': 'Type',
+  'settings.service': 'Service',
+  'settings.storage': 'Stockage libre',
   'settings.statusConnected': 'Connecté',
   'settings.statusReconnecting': 'Reconnexion',
   'settings.statusDisconnected': 'Déconnecté',
@@ -121,8 +127,14 @@ export const fr: Record<string, string> = {
   'settings.desktopNotifications': 'Notifications de bureau',
   'settings.flashTaskbar': 'Clignoter la barre des tâches pour un nouveau message',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Afficher les aperçus de liens',
+
+  // Language
   'settings.language': 'Langue',
   'settings.languageAuto': 'Automatique (détecter depuis le système)',
+
+  // Theme
+  'settings.theme': 'Thème',
 
   // Updates
   'updates.title': 'Mises à jour',
@@ -167,7 +179,7 @@ export const fr: Record<string, string> = {
   // About dialog
   'about.close': 'Fermer',
   'about.name': 'FossLink',
-  'about.version': 'Version 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 par Brian Hanson',
   'about.releasedUnder': 'Publié sous la',
   'about.mitLicense': 'Licence MIT',
@@ -176,7 +188,88 @@ export const fr: Record<string, string> = {
   'about.electronDesc': 'framework de bureau multiplateforme',
   'about.svelteDesc': 'framework d\'interface réactif',
   'about.sourceAvailable': 'Licence complète et code source disponibles sur',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Ce logiciel a été créé dans l\'esprit du logiciel libre, dans l\'espoir de vous rendre la vie un peu plus facile.',
+
+  // Dial confirmation
+  'dial.confirm': 'Appeler {number} sur votre téléphone ?',
+  'dial.ok': 'OK',
+  'dial.cancel': 'Annuler',
+  'dial.callBtn': 'Appeler',
+
+  // URL sharing
+  'app.shareUrl': 'Ouvrir l\'URL sur le téléphone',
+  'shareUrl.title': 'Ouvrir l\'URL sur le téléphone',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'Annuler',
+  'shareUrl.share': 'Partager',
+  'shareUrl.invalidUrl': 'Entrez une URL valide commençant par http:// ou https://',
+
+  // Resync
+  'settings.resyncBtn': 'Resynchroniser',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'Mise à jour de l\'application requise',
+  'version.companionUpdateDesc': 'L\'application FossLink de votre téléphone (v{peerVersion}) n\'est pas compatible avec cette version de FossLink Desktop (v{desktopVersion}). Veuillez mettre à jour l\'application.',
+  'version.desktopUpdateRequired': 'Mise à jour du bureau requise',
+  'version.desktopUpdateDesc': 'Cette version de FossLink Desktop (v{desktopVersion}) n\'est pas compatible avec l\'application FossLink de votre téléphone (v{peerVersion}). Veuillez mettre à jour FossLink Desktop.',
+  'version.updateCompanion': 'Mettre à jour l\'application',
+  'version.downloadUpdate': 'Télécharger la mise à jour',
+  'version.orScanQR': 'Ou scannez ce code QR sur votre téléphone pour télécharger la dernière version :',
+  'version.sentToPhone': 'Demande de mise à jour envoyée au téléphone',
+
+  // Storage analyzer
+  'storage.title': 'Analyseur de stockage',
+  'storage.analyzing': 'Analyse du stockage du téléphone...',
+  'storage.analyzeBtn': 'Analyser le stockage',
+  'storage.close': 'Fermer',
+  'storage.free': '{free} Go libres sur {total} Go',
+  'storage.error': 'Échec de l\'analyse du stockage',
+  'storage.noRoot': 'Activez l\'intégration root sur votre téléphone pour une analyse détaillée.',
+
+  // Extras section
+  'extras.title': 'Extras',
+  'extras.storageTitle': 'Explorateur de stockage',
+  'extras.storageSubtitle': 'Analyser l\'utilisation du stockage',
+  'extras.filesTitle': 'Fichiers du téléphone',
+  'extras.filesSubtitle': 'Parcourir le système de fichiers',
+  'extras.filesMounted': 'Monté',
+  'extras.migrationTitle': 'Migration des contacts',
+  'extras.migrationSubtitle': 'Déplacer les contacts vers Google',
+
+  // Contact migration
+  'migration.title': 'Migration des contacts',
+  'migration.intro': 'Trouvez les contacts stockés sur votre appareil ou SIM qui ne sont pas sauvegardés dans Google Contacts, et migrez-les.',
+  'migration.scanBtn': 'Rechercher les contacts de l\'appareil',
+  'migration.scanning': 'Analyse des contacts sur le téléphone...',
+  'migration.found': '{count} contacts trouvés uniquement sur l\'appareil',
+  'migration.migrateTo': 'Migrer vers : {account}',
+  'migration.noGoogle': 'Aucun compte Google trouvé sur le téléphone.',
+  'migration.selectAll': 'Tout sélectionner ({count})',
+  'migration.migrateBtn': 'Migrer {count} contacts vers Google',
+  'migration.migrating': 'Migration des contacts...',
+  'migration.success': '{count} contacts migrés avec succès.',
+  'migration.failed': '{count} contacts ont échoué.',
+  'migration.allGood': 'Tous les contacts sont déjà sauvegardés dans Google.',
+  'migration.done': 'Terminé',
+  'migration.retry': 'Réessayer',
+
+  // Gallery
+  'app.gallery': 'Galerie du téléphone',
+  'gallery.title': 'Galerie du téléphone',
+  'gallery.close': 'Fermer la galerie',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Captures',
+  'gallery.viewFolders': 'Dossiers',
+  'gallery.viewAll': 'Tout',
+  'gallery.sizeSmall': 'Petites miniatures',
+  'gallery.sizeLarge': 'Grandes miniatures',
+  'gallery.toggleHidden': 'Basculer les fichiers cachés',
+  'gallery.scanning': 'Analyse de la galerie du téléphone...',
+  'gallery.retry': 'Réessayer',
+  'gallery.empty': 'Aucun média trouvé',
+  'gallery.noFolders': 'Aucun dossier trouvé',
 
   // Notification
   'notification.newMessage': 'Nouveau message reçu',

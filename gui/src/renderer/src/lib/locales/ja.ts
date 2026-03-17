@@ -83,6 +83,10 @@ export const ja: Record<string, string> = {
   'messages.compose': 'メッセージを入力...',
   'messages.send': 'メッセージを送信',
   'messages.emoji': '絵文字',
+  'messages.attach': 'ファイルを添付',
+  'messages.removeAttachment': '添付ファイルを削除',
+  'messages.attachmentTooLarge': '合計サイズがMMS制限を超えています。送信に失敗する可能性があります。',
+  'messages.attachmentTooMany': '添付ファイルは最大10個までです',
 
   // Export
   'export.tooltip': '会話をエクスポート',
@@ -117,6 +121,8 @@ export const ja: Record<string, string> = {
   'settings.waitingDevice': 'デバイスを待機中...',
   'settings.ipAddress': 'IP アドレス',
   'settings.type': 'タイプ',
+  'settings.service': 'サービス',
+  'settings.storage': '空き容量',
   'settings.statusConnected': '接続済み',
   'settings.statusReconnecting': '再接続中',
   'settings.statusDisconnected': '未接続',
@@ -124,8 +130,14 @@ export const ja: Record<string, string> = {
   'settings.desktopNotifications': 'デスクトップ通知',
   'settings.flashTaskbar': '新しいメッセージでタスクバーを点滅',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'リンクプレビューを表示',
+
+  // Language
   'settings.language': '言語',
   'settings.languageAuto': '自動（システムから検出）',
+
+  // Theme
+  'settings.theme': 'テーマ',
 
   // Updates
   'updates.title': 'アップデート',
@@ -170,7 +182,7 @@ export const ja: Record<string, string> = {
   // About dialog
   'about.close': '閉じる',
   'about.name': 'FossLink',
-  'about.version': 'バージョン 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 年 Brian Hanson',
   'about.releasedUnder': 'ライセンス：',
   'about.mitLicense': 'MIT ライセンス',
@@ -179,7 +191,88 @@ export const ja: Record<string, string> = {
   'about.electronDesc': 'クロスプラットフォームのデスクトップフレームワーク',
   'about.svelteDesc': 'リアクティブ UI フレームワーク',
   'about.sourceAvailable': '完全なライセンスとソースコードはこちらで入手できます：',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'このソフトウェアはオープンソースの精神に基づき、皆様の生活が少しでも便利になることを願って提供されています。',
+
+  // Dial confirmation
+  'dial.confirm': '{number}に電話しますか？',
+  'dial.ok': 'OK',
+  'dial.cancel': 'キャンセル',
+  'dial.callBtn': '電話',
+
+  // URL sharing
+  'app.shareUrl': '電話でURLを開く',
+  'shareUrl.title': '電話でURLを開く',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'キャンセル',
+  'shareUrl.share': '共有',
+  'shareUrl.invalidUrl': 'http:// または https:// で始まる有効なURLを入力してください',
+
+  // Resync
+  'settings.resyncBtn': '再同期',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'コンパニオンアプリの更新が必要です',
+  'version.companionUpdateDesc': 'お使いの電話のFossLinkアプリ (v{peerVersion}) はこのバージョンのFossLink Desktop (v{desktopVersion}) と互換性がありません。アプリを更新してください。',
+  'version.desktopUpdateRequired': 'デスクトップの更新が必要です',
+  'version.desktopUpdateDesc': 'このバージョンのFossLink Desktop (v{desktopVersion}) はお使いの電話のFossLinkアプリ (v{peerVersion}) と互換性がありません。FossLink Desktopを更新してください。',
+  'version.updateCompanion': 'アプリを更新',
+  'version.downloadUpdate': 'アップデートをダウンロード',
+  'version.orScanQR': 'または電話でこのQRコードをスキャンして最新バージョンをダウンロード：',
+  'version.sentToPhone': '更新リクエストを電話に送信しました',
+
+  // Storage analyzer
+  'storage.title': 'ストレージ分析',
+  'storage.analyzing': '電話のストレージを分析中...',
+  'storage.analyzeBtn': 'ストレージを分析',
+  'storage.close': '閉じる',
+  'storage.free': '{total} GB 中 {free} GB 空き',
+  'storage.error': 'ストレージ分析に失敗しました',
+  'storage.noRoot': '詳細な分析には電話でRoot統合を有効にしてください。',
+
+  // Extras section
+  'extras.title': 'その他',
+  'extras.storageTitle': 'ストレージエクスプローラー',
+  'extras.storageSubtitle': 'ストレージ使用量を分析',
+  'extras.filesTitle': '電話のファイル',
+  'extras.filesSubtitle': 'ファイルシステムを閲覧',
+  'extras.filesMounted': 'マウント済み',
+  'extras.migrationTitle': '連絡先の移行',
+  'extras.migrationSubtitle': 'デバイスの連絡先をGoogleに移動',
+
+  // Contact migration
+  'migration.title': '連絡先の移行',
+  'migration.intro': 'デバイスやSIMに保存されていてGoogle連絡先にバックアップされていない連絡先を見つけて移行します。',
+  'migration.scanBtn': 'デバイスの連絡先を検索',
+  'migration.scanning': '電話の連絡先をスキャン中...',
+  'migration.found': 'デバイスのみに {count} 件の連絡先が見つかりました',
+  'migration.migrateTo': '移行先：{account}',
+  'migration.noGoogle': '電話にGoogleアカウントが見つかりません。',
+  'migration.selectAll': 'すべて選択 ({count})',
+  'migration.migrateBtn': '{count} 件の連絡先をGoogleに移行',
+  'migration.migrating': '連絡先を移行中...',
+  'migration.success': '{count} 件の連絡先が正常に移行されました。',
+  'migration.failed': '{count} 件の連絡先が失敗しました。',
+  'migration.allGood': 'すべての連絡先はすでにGoogleにバックアップされています。',
+  'migration.done': '完了',
+  'migration.retry': '再試行',
+
+  // Gallery
+  'app.gallery': '電話ギャラリー',
+  'gallery.title': '電話ギャラリー',
+  'gallery.close': 'ギャラリーを閉じる',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'スクリーンショット',
+  'gallery.viewFolders': 'フォルダ',
+  'gallery.viewAll': 'すべて',
+  'gallery.sizeSmall': '小さいサムネイル',
+  'gallery.sizeLarge': '大きいサムネイル',
+  'gallery.toggleHidden': '隠しファイルの表示切替',
+  'gallery.scanning': '電話ギャラリーをスキャン中...',
+  'gallery.retry': '再試行',
+  'gallery.empty': 'メディアが見つかりません',
+  'gallery.noFolders': 'フォルダが見つかりません',
 
   // Notification
   'notification.newMessage': '新しいメッセージを受信しました',

@@ -326,6 +326,7 @@
 
   .message-bubble--sent .message-bubble__content {
     background-color: var(--bubble-sent);
+    color: var(--bubble-sent-text);
     border-bottom-right-radius: var(--radius-sm);
   }
 
@@ -343,24 +344,24 @@
   }
 
   .message-bubble__body :global(.message-link) {
-    color: #6ea8fe;
+    color: var(--link-color);
     text-decoration: underline;
     cursor: pointer;
   }
 
   .message-bubble__body :global(.message-link:hover) {
-    color: #9ec5fe;
+    color: var(--link-visited);
   }
 
   .message-bubble__body :global(.message-phone-link) {
-    color: #6ea8fe;
+    color: var(--link-color);
     text-decoration: underline;
     text-decoration-style: dotted;
     cursor: pointer;
   }
 
   .message-bubble__body :global(.message-phone-link:hover) {
-    color: #9ec5fe;
+    color: var(--link-visited);
     text-decoration-style: solid;
   }
 

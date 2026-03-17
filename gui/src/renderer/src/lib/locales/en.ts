@@ -136,6 +136,9 @@ export const en: Record<string, string> = {
   'settings.language': 'Language',
   'settings.languageAuto': 'Auto (detect from system)',
 
+  // Theme
+  'settings.theme': 'Theme',
+
   // Updates
   'updates.title': 'Updates',
   'updates.version': 'Version',
@@ -179,7 +182,7 @@ export const en: Record<string, string> = {
   // About dialog
   'about.close': 'Close',
   'about.name': 'FossLink',
-  'about.version': 'Version 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 by Brian Hanson',
   'about.releasedUnder': 'Released under the',
   'about.mitLicense': 'MIT License',
@@ -188,6 +191,8 @@ export const en: Record<string, string> = {
   'about.electronDesc': 'cross-platform desktop framework',
   'about.svelteDesc': 'reactive UI framework',
   'about.sourceAvailable': 'Full license and source available at',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'This software was provided in the spirit of open source, in the hope that it makes your life a little easier.',
 
   // Dial confirmation
@@ -258,6 +263,7 @@ export const en: Record<string, string> = {
   'gallery.title': 'Phone Gallery',
   'gallery.close': 'Close gallery',
   'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Screenshots',
   'gallery.viewFolders': 'Folders',
   'gallery.viewAll': 'All',
   'gallery.sizeSmall': 'Small thumbnails',

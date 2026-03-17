@@ -83,6 +83,10 @@ export const ko: Record<string, string> = {
   'messages.compose': '메시지를 입력하세요...',
   'messages.send': '메시지 보내기',
   'messages.emoji': '이모지',
+  'messages.attach': '파일 첨부',
+  'messages.removeAttachment': '첨부파일 제거',
+  'messages.attachmentTooLarge': '총 크기가 MMS 제한을 초과합니다. 메시지 전송에 실패할 수 있습니다.',
+  'messages.attachmentTooMany': '최대 10개의 첨부파일 허용',
 
   // Export
   'export.tooltip': '대화 내보내기',
@@ -117,6 +121,8 @@ export const ko: Record<string, string> = {
   'settings.waitingDevice': '기기 대기 중...',
   'settings.ipAddress': 'IP 주소',
   'settings.type': '유형',
+  'settings.service': '서비스',
+  'settings.storage': '여유 저장공간',
   'settings.statusConnected': '연결됨',
   'settings.statusReconnecting': '재연결 중',
   'settings.statusDisconnected': '연결 안 됨',
@@ -124,8 +130,14 @@ export const ko: Record<string, string> = {
   'settings.desktopNotifications': '데스크톱 알림',
   'settings.flashTaskbar': '새 메시지 시 작업 표시줄 깜빡임',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': '링크 미리보기 표시',
+
+  // Language
   'settings.language': '언어',
   'settings.languageAuto': '자동 (시스템에서 감지)',
+
+  // Theme
+  'settings.theme': '테마',
 
   // Updates
   'updates.title': '업데이트',
@@ -170,7 +182,7 @@ export const ko: Record<string, string> = {
   // About dialog
   'about.close': '닫기',
   'about.name': 'FossLink',
-  'about.version': '버전 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 Brian Hanson',
   'about.releasedUnder': '라이선스:',
   'about.mitLicense': 'MIT 라이선스',
@@ -179,7 +191,88 @@ export const ko: Record<string, string> = {
   'about.electronDesc': '크로스 플랫폼 데스크톱 프레임워크',
   'about.svelteDesc': '리액티브 UI 프레임워크',
   'about.sourceAvailable': '전체 라이선스 및 소스 코드:',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': '이 소프트웨어는 오픈 소스 정신으로 제공되며, 여러분의 삶을 조금이나마 편하게 만들어 드리기를 바랍니다.',
+
+  // Dial confirmation
+  'dial.confirm': '휴대폰에서 {number}에 전화하시겠습니까?',
+  'dial.ok': '확인',
+  'dial.cancel': '취소',
+  'dial.callBtn': '전화',
+
+  // URL sharing
+  'app.shareUrl': '휴대폰에서 URL 열기',
+  'shareUrl.title': '휴대폰에서 URL 열기',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': '취소',
+  'shareUrl.share': '공유',
+  'shareUrl.invalidUrl': 'http:// 또는 https://로 시작하는 유효한 URL을 입력하세요',
+
+  // Resync
+  'settings.resyncBtn': '다시 동기화',
+
+  // Version compatibility
+  'version.companionUpdateRequired': '앱 업데이트 필요',
+  'version.companionUpdateDesc': '휴대폰의 FossLink 앱 (v{peerVersion})이 이 버전의 FossLink Desktop (v{desktopVersion})과 호환되지 않습니다. 앱을 업데이트해 주세요.',
+  'version.desktopUpdateRequired': '데스크톱 업데이트 필요',
+  'version.desktopUpdateDesc': '이 버전의 FossLink Desktop (v{desktopVersion})이 휴대폰의 FossLink 앱 (v{peerVersion})과 호환되지 않습니다. FossLink Desktop을 업데이트해 주세요.',
+  'version.updateCompanion': '앱 업데이트',
+  'version.downloadUpdate': '업데이트 다운로드',
+  'version.orScanQR': '또는 휴대폰에서 이 QR 코드를 스캔하여 최신 버전을 다운로드하세요:',
+  'version.sentToPhone': '업데이트 요청이 휴대폰으로 전송됨',
+
+  // Storage analyzer
+  'storage.title': '저장공간 분석기',
+  'storage.analyzing': '휴대폰 저장공간 분석 중...',
+  'storage.analyzeBtn': '저장공간 분석',
+  'storage.close': '닫기',
+  'storage.free': '{total} GB 중 {free} GB 사용 가능',
+  'storage.error': '저장공간 분석 실패',
+  'storage.noRoot': '자세한 분석을 위해 휴대폰에서 Root 통합을 활성화하세요.',
+
+  // Extras section
+  'extras.title': '추가 기능',
+  'extras.storageTitle': '저장공간 탐색기',
+  'extras.storageSubtitle': '저장공간 사용량 분석',
+  'extras.filesTitle': '휴대폰 파일',
+  'extras.filesSubtitle': '파일 시스템 탐색',
+  'extras.filesMounted': '마운트됨',
+  'extras.migrationTitle': '연락처 마이그레이션',
+  'extras.migrationSubtitle': '기기 연락처를 Google로 이동',
+
+  // Contact migration
+  'migration.title': '연락처 마이그레이션',
+  'migration.intro': '기기나 SIM에 저장되어 있고 Google 주소록에 백업되지 않은 연락처를 찾아 마이그레이션합니다.',
+  'migration.scanBtn': '기기 연락처 검색',
+  'migration.scanning': '휴대폰 연락처 스캔 중...',
+  'migration.found': '기기에서만 {count}개의 연락처 발견',
+  'migration.migrateTo': '마이그레이션 대상: {account}',
+  'migration.noGoogle': '휴대폰에서 Google 계정을 찾을 수 없습니다.',
+  'migration.selectAll': '모두 선택 ({count})',
+  'migration.migrateBtn': '{count}개의 연락처를 Google로 마이그레이션',
+  'migration.migrating': '연락처 마이그레이션 중...',
+  'migration.success': '{count}개의 연락처가 성공적으로 마이그레이션되었습니다.',
+  'migration.failed': '{count}개의 연락처가 실패했습니다.',
+  'migration.allGood': '모든 연락처가 이미 Google에 백업되어 있습니다.',
+  'migration.done': '완료',
+  'migration.retry': '다시 시도',
+
+  // Gallery
+  'app.gallery': '휴대폰 갤러리',
+  'gallery.title': '휴대폰 갤러리',
+  'gallery.close': '갤러리 닫기',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': '스크린샷',
+  'gallery.viewFolders': '폴더',
+  'gallery.viewAll': '전체',
+  'gallery.sizeSmall': '작은 썸네일',
+  'gallery.sizeLarge': '큰 썸네일',
+  'gallery.toggleHidden': '숨김 파일 전환',
+  'gallery.scanning': '휴대폰 갤러리 스캔 중...',
+  'gallery.retry': '다시 시도',
+  'gallery.empty': '미디어를 찾을 수 없음',
+  'gallery.noFolders': '폴더를 찾을 수 없음',
 
   // Notification
   'notification.newMessage': '새 메시지를 수신했습니다',

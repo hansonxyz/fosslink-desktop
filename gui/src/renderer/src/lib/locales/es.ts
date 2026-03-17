@@ -80,6 +80,10 @@ export const es: Record<string, string> = {
   'messages.compose': 'Escribe un mensaje...',
   'messages.send': 'Enviar mensaje',
   'messages.emoji': 'Emoji',
+  'messages.attach': 'Adjuntar archivo',
+  'messages.removeAttachment': 'Eliminar adjunto',
+  'messages.attachmentTooLarge': 'El tamaño total supera el límite MMS. El mensaje puede fallar.',
+  'messages.attachmentTooMany': 'Máximo 10 adjuntos permitidos',
 
   // Export
   'export.tooltip': 'Exportar conversación',
@@ -114,6 +118,8 @@ export const es: Record<string, string> = {
   'settings.waitingDevice': 'Esperando dispositivo...',
   'settings.ipAddress': 'Dirección IP',
   'settings.type': 'Tipo',
+  'settings.service': 'Servicio',
+  'settings.storage': 'Almacenamiento libre',
   'settings.statusConnected': 'Conectado',
   'settings.statusReconnecting': 'Reconectando',
   'settings.statusDisconnected': 'Desconectado',
@@ -121,8 +127,14 @@ export const es: Record<string, string> = {
   'settings.desktopNotifications': 'Notificaciones de escritorio',
   'settings.flashTaskbar': 'Parpadear barra de tareas con mensaje nuevo',
   'settings.flashTaskbarHint': '(Windows)',
+  'settings.linkPreviews': 'Mostrar vista previa de enlaces',
+
+  // Language
   'settings.language': 'Idioma',
   'settings.languageAuto': 'Automático (detectar del sistema)',
+
+  // Theme
+  'settings.theme': 'Tema',
 
   // Updates
   'updates.title': 'Actualizaciones',
@@ -167,7 +179,7 @@ export const es: Record<string, string> = {
   // About dialog
   'about.close': 'Cerrar',
   'about.name': 'FossLink',
-  'about.version': 'Versión 0.1',
+  'about.version': 'Version 1.0.0',
   'about.credit': '2026 por Brian Hanson',
   'about.releasedUnder': 'Publicado bajo la',
   'about.mitLicense': 'Licencia MIT',
@@ -176,7 +188,88 @@ export const es: Record<string, string> = {
   'about.electronDesc': 'framework de escritorio multiplataforma',
   'about.svelteDesc': 'framework de UI reactivo',
   'about.sourceAvailable': 'Licencia completa y código fuente disponibles en',
+  'about.androidApp': 'Get the Android companion app on',
+  'about.googlePlay': 'Google Play',
   'about.tagline': 'Este software fue creado con el espíritu del código abierto, con la esperanza de hacer tu vida un poco más fácil.',
+
+  // Dial confirmation
+  'dial.confirm': '¿Llamar a {number} en tu teléfono?',
+  'dial.ok': 'Aceptar',
+  'dial.cancel': 'Cancelar',
+  'dial.callBtn': 'Llamar',
+
+  // URL sharing
+  'app.shareUrl': 'Abrir URL en el teléfono',
+  'shareUrl.title': 'Abrir URL en el teléfono',
+  'shareUrl.placeholder': 'https://...',
+  'shareUrl.cancel': 'Cancelar',
+  'shareUrl.share': 'Compartir',
+  'shareUrl.invalidUrl': 'Introduce una URL válida que comience con http:// o https://',
+
+  // Resync
+  'settings.resyncBtn': 'Resincronizar',
+
+  // Version compatibility
+  'version.companionUpdateRequired': 'Actualización de la app requerida',
+  'version.companionUpdateDesc': 'La app FossLink de tu teléfono (v{peerVersion}) no es compatible con esta versión de FossLink Desktop (v{desktopVersion}). Por favor actualiza la app.',
+  'version.desktopUpdateRequired': 'Actualización de escritorio requerida',
+  'version.desktopUpdateDesc': 'Esta versión de FossLink Desktop (v{desktopVersion}) no es compatible con la app FossLink de tu teléfono (v{peerVersion}). Por favor actualiza FossLink Desktop.',
+  'version.updateCompanion': 'Actualizar app',
+  'version.downloadUpdate': 'Descargar actualización',
+  'version.orScanQR': 'O escanea este código QR en tu teléfono para descargar la última versión:',
+  'version.sentToPhone': 'Solicitud de actualización enviada al teléfono',
+
+  // Storage analyzer
+  'storage.title': 'Analizador de almacenamiento',
+  'storage.analyzing': 'Analizando almacenamiento del teléfono...',
+  'storage.analyzeBtn': 'Analizar almacenamiento',
+  'storage.close': 'Cerrar',
+  'storage.free': '{free} GB libres de {total} GB',
+  'storage.error': 'Error en el análisis de almacenamiento',
+  'storage.noRoot': 'Activa la integración root en tu teléfono para un desglose detallado.',
+
+  // Extras section
+  'extras.title': 'Extras',
+  'extras.storageTitle': 'Explorador de almacenamiento',
+  'extras.storageSubtitle': 'Analizar uso de almacenamiento',
+  'extras.filesTitle': 'Archivos del teléfono',
+  'extras.filesSubtitle': 'Explorar sistema de archivos',
+  'extras.filesMounted': 'Montado',
+  'extras.migrationTitle': 'Migración de contactos',
+  'extras.migrationSubtitle': 'Mover contactos del dispositivo a Google',
+
+  // Contact migration
+  'migration.title': 'Migración de contactos',
+  'migration.intro': 'Encuentra contactos almacenados en tu dispositivo o SIM que no están respaldados en Google Contacts y migrarlos.',
+  'migration.scanBtn': 'Buscar contactos del dispositivo',
+  'migration.scanning': 'Escaneando contactos en el teléfono...',
+  'migration.found': '{count} contactos encontrados solo en el dispositivo',
+  'migration.migrateTo': 'Migrar a: {account}',
+  'migration.noGoogle': 'No se encontró cuenta de Google en el teléfono.',
+  'migration.selectAll': 'Seleccionar todos ({count})',
+  'migration.migrateBtn': 'Migrar {count} contactos a Google',
+  'migration.migrating': 'Migrando contactos...',
+  'migration.success': '{count} contactos migrados exitosamente.',
+  'migration.failed': '{count} contactos fallaron.',
+  'migration.allGood': 'Todos los contactos ya están respaldados en Google.',
+  'migration.done': 'Listo',
+  'migration.retry': 'Reintentar',
+
+  // Gallery
+  'app.gallery': 'Galería del teléfono',
+  'gallery.title': 'Galería del teléfono',
+  'gallery.close': 'Cerrar galería',
+  'gallery.viewDcim': 'DCIM',
+  'gallery.viewScreenshots': 'Capturas',
+  'gallery.viewFolders': 'Carpetas',
+  'gallery.viewAll': 'Todo',
+  'gallery.sizeSmall': 'Miniaturas pequeñas',
+  'gallery.sizeLarge': 'Miniaturas grandes',
+  'gallery.toggleHidden': 'Alternar archivos ocultos',
+  'gallery.scanning': 'Escaneando galería del teléfono...',
+  'gallery.retry': 'Reintentar',
+  'gallery.empty': 'No se encontraron medios',
+  'gallery.noFolders': 'No se encontraron carpetas',
 
   // Notification
   'notification.newMessage': 'Nuevo mensaje recibido',

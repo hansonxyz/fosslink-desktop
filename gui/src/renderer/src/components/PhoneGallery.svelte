@@ -84,6 +84,8 @@
       watchFolder('/' + gallery.selectedFolder)
     } else if (gallery.viewMode === 'dcim') {
       watchFolder('/DCIM')
+    } else if (gallery.viewMode === 'screenshots') {
+      watchFolder('/Pictures/Screenshots')
     } else {
       unwatchFolder()
     }
@@ -123,6 +125,8 @@
 
   function handleItemClick(item: GalleryItem, itemList: GalleryItem[], index: number): void {
     if (item.kind === 'video') {
+      // Show lightbox immediately with spinner, then load video
+      openGalleryLightbox('video', '', item.path, itemList, index)
       void requestFullFile(item.path, item.size).then((url) => {
         openGalleryLightbox('video', url, item.path, itemList, index)
       })
@@ -162,17 +166,20 @@
 
   const viewModes: Array<{ key: ViewMode; label: string }> = [
     { key: 'dcim', label: 'gallery.viewDcim' },
+    { key: 'screenshots', label: 'gallery.viewScreenshots' },
     { key: 'folders', label: 'gallery.viewFolders' },
     { key: 'all', label: 'gallery.viewAll' },
   ]
 
   // "Show in Explorer" — visible in DCIM mode or when viewing a single folder
   const showExplorerBtn = $derived(
-    gallery.viewMode === 'dcim' || inFolderDetail,
+    gallery.viewMode === 'dcim' || gallery.viewMode === 'screenshots' || inFolderDetail,
   )
 
   const explorerFolderPath = $derived(
-    gallery.viewMode === 'dcim' ? 'DCIM' : gallery.selectedFolder ?? '',
+    gallery.viewMode === 'dcim' ? 'DCIM'
+      : gallery.viewMode === 'screenshots' ? 'Pictures/Screenshots'
+      : gallery.selectedFolder ?? '',
   )
 
   let explorerLoading = $state(false)
@@ -411,6 +418,9 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
     background: var(--bg-primary);
   }
 
@@ -421,6 +431,8 @@
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .gallery__header-left {
@@ -550,6 +562,8 @@
 
   .gallery__body {
     flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     padding: var(--space-3);
   }
@@ -603,6 +617,7 @@
     cursor: pointer;
     border-bottom: 1px solid var(--border);
     padding: var(--space-2) 0;
+    overflow: hidden;
     transition: background-color 0.15s;
   }
 

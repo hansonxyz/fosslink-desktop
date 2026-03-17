@@ -15,6 +15,7 @@ interface PersistedSettings {
   autoCheckUpdates: boolean
   locale: string
   linkPreviewsEnabled: boolean
+  theme: string
 }
 
 const DEFAULTS: PersistedSettings = {
@@ -25,6 +26,7 @@ const DEFAULTS: PersistedSettings = {
   autoCheckUpdates: true,
   locale: 'auto',
   linkPreviewsEnabled: true,
+  theme: 'midnight-blue',
 }
 
 function loadSettings(): PersistedSettings {
@@ -58,6 +60,7 @@ export const settings = $state({
   autoCheckUpdates: initial.autoCheckUpdates,
   locale: initial.locale,
   linkPreviewsEnabled: initial.linkPreviewsEnabled,
+  theme: initial.theme,
 })
 
 /**
@@ -74,6 +77,7 @@ export function initSettingsStore(): void {
       autoCheckUpdates: settings.autoCheckUpdates,
       locale: settings.locale,
       linkPreviewsEnabled: settings.linkPreviewsEnabled,
+      theme: settings.theme,
     })
   })
 }
