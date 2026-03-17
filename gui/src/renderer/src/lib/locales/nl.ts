@@ -221,6 +221,9 @@ export const nl: Record<string, string> = {
   'version.downloadUpdate': 'Update downloaden',
   'version.orScanQR': 'Of scan deze QR-code op je telefoon om de nieuwste versie te downloaden:',
   'version.sentToPhone': 'Updateverzoek naar telefoon verzonden',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'Opslaganalyse',

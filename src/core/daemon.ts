@@ -78,7 +78,9 @@ import {
   MSG_FS_UNWATCH_RESPONSE,
   MSG_FS_WATCH_EVENT,
   CLIENT_VERSION,
+  MIN_PEER_VERSION,
 } from '../network/packet.js';
+import { checkVersionCompatibility } from '../utils/semver.js';
 import { IpcServer } from '../ipc/server.js';
 import { registerHandlers, registerNotifications } from '../ipc/handlers.js';
 import { createNotification } from '../ipc/json-rpc.js';
@@ -184,6 +186,10 @@ export class Daemon {
   // Reconnect timers for known devices
   private reconnectTimers = new Map<string, ReturnType<typeof setInterval>>();
 
+  // Version check timers and state for incompatible peers
+  private versionCheckTimers = new Map<string, ReturnType<typeof setInterval>>();
+  private versionCheckInfo = new Map<string, { peerVersion: string; peerTooOld: boolean; selfTooOld: boolean }>();
+
   // Track whether initial sync has been done this session
   private sessionSynced = false;
 
@@ -288,14 +294,49 @@ export class Daemon {
       if (success) {
         this.logger!.info('core.daemon', 'Pairing successful', { deviceId });
         const conn = this.wsServer!.getConnection(deviceId);
+        const versionCheck = checkVersionCompatibility(
+          CLIENT_VERSION, MIN_PEER_VERSION,
+          conn?.clientVersion, conn?.minPeerVersion,
+        );
+
         if (this.stateMachine!.canTransition(AppState.CONNECTED)) {
           this.stateMachine!.transition(AppState.CONNECTED, {
             deviceId,
             deviceName: conn?.deviceName,
             peerClientType: 'fosslink',
             peerClientVersion: conn?.clientVersion,
+            peerMinPeerVersion: conn?.minPeerVersion,
             peerRootEnabled: conn?.rootEnabled,
+            versionCompatible: versionCheck.compatible,
+            peerTooOld: versionCheck.peerTooOld,
+            selfTooOld: versionCheck.selfTooOld,
           });
+        }
+
+        if (!versionCheck.compatible) {
+          this.logger!.warn('core.daemon', 'Version incompatible after pairing', {
+            deviceId,
+            ourVersion: CLIENT_VERSION,
+            peerVersion: conn?.clientVersion,
+            peerTooOld: versionCheck.peerTooOld,
+            selfTooOld: versionCheck.selfTooOld,
+          });
+          this.versionCheckInfo.set(deviceId, {
+            peerVersion: conn?.clientVersion ?? 'unknown',
+            peerTooOld: versionCheck.peerTooOld,
+            selfTooOld: versionCheck.selfTooOld,
+          });
+          // Save to known devices even if incompatible
+          if (conn) {
+            saveKnownDevice({
+              deviceId,
+              deviceName: conn.deviceName,
+              address: conn.remoteAddress ?? '',
+              port: WS_PORT,
+            });
+          }
+          conn?.close();
+          return;
         }
 
         // Save to known devices
@@ -345,20 +386,48 @@ export class Daemon {
         });
       }
 
-      // Clear any reconnect timer
+      // Clear any reconnect/version-check timer
       this.clearReconnectTimer(connection.deviceId);
+      this.clearVersionCheckTimer(connection.deviceId);
 
       // If device is already paired, transition to CONNECTED
       if (this.pairingHandler!.isPaired(connection.deviceId)) {
+        const versionCheck = checkVersionCompatibility(
+          CLIENT_VERSION, MIN_PEER_VERSION,
+          connection.clientVersion, connection.minPeerVersion,
+        );
+
         if (this.stateMachine!.canTransition(AppState.CONNECTED)) {
           this.stateMachine!.transition(AppState.CONNECTED, {
             deviceId: connection.deviceId,
             deviceName: connection.deviceName,
             peerClientType: 'fosslink',
             peerClientVersion: connection.clientVersion,
+            peerMinPeerVersion: connection.minPeerVersion,
             peerRootEnabled: connection.rootEnabled,
+            versionCompatible: versionCheck.compatible,
+            peerTooOld: versionCheck.peerTooOld,
+            selfTooOld: versionCheck.selfTooOld,
           });
         }
+
+        if (!versionCheck.compatible) {
+          this.logger!.warn('core.daemon', 'Version incompatible on reconnect', {
+            deviceId: connection.deviceId,
+            ourVersion: CLIENT_VERSION,
+            peerVersion: connection.clientVersion,
+          });
+          this.versionCheckInfo.set(connection.deviceId, {
+            peerVersion: connection.clientVersion ?? 'unknown',
+            peerTooOld: versionCheck.peerTooOld,
+            selfTooOld: versionCheck.selfTooOld,
+          });
+          connection.close();
+          return;
+        }
+
+        // Version compatible — clear any stale version check info
+        this.versionCheckInfo.delete(connection.deviceId);
 
         // Re-request contacts on reconnection
         if (this.contactsHandler) {
@@ -432,6 +501,8 @@ export class Daemon {
     this.pairingHandler.onUnpaired((deviceId) => {
       this.logger!.info('core.daemon', 'Device unpaired', { deviceId });
       this.sessionSynced = false;
+      this.versionCheckInfo.delete(deviceId);
+      this.clearVersionCheckTimer(deviceId);
 
       const conn = this.wsServer!.getConnection(deviceId);
       if (conn) {
@@ -487,7 +558,19 @@ export class Daemon {
         this.stateMachine!.transition(AppState.DISCOVERING);
       }
 
-      this.startReconnectTimer(deviceId);
+      const vInfo = this.versionCheckInfo.get(deviceId);
+      if (vInfo) {
+        // Restore version incompatibility state so GUI keeps showing warning
+        this.stateMachine!.updateContext({
+          peerClientVersion: vInfo.peerVersion,
+          versionCompatible: false,
+          peerTooOld: vInfo.peerTooOld,
+          selfTooOld: vInfo.selfTooOld,
+        });
+        this.startVersionCheckTimer(deviceId);
+      } else {
+        this.startReconnectTimer(deviceId);
+      }
     });
 
     // --- Wire discovery → auto-connect trusted devices ---
@@ -863,6 +946,12 @@ export class Daemon {
       clearInterval(timer);
     }
     this.reconnectTimers.clear();
+
+    // Clear version check timers
+    for (const [, timer] of this.versionCheckTimers) {
+      clearInterval(timer);
+    }
+    this.versionCheckTimers.clear();
 
     // Close database
     if (this.databaseService) {
@@ -1319,6 +1408,38 @@ export class Daemon {
       clearInterval(timer);
       this.reconnectTimers.delete(deviceId);
       this.logger?.debug('core.daemon', 'Reconnect timer cleared', { deviceId });
+    }
+  }
+
+  private startVersionCheckTimer(deviceId: string): void {
+    if (this.versionCheckTimers.has(deviceId)) return;
+
+    const knownDevices = loadKnownDevices();
+    const known = knownDevices.find((d) => d.deviceId === deviceId);
+    if (!known) return;
+
+    this.logger!.info('core.daemon', 'Starting version check timer (25s)', { deviceId });
+
+    const timer = setInterval(() => {
+      if (this.stopped) {
+        this.clearVersionCheckTimer(deviceId);
+        return;
+      }
+      if (this.wsServer!.getConnection(deviceId)) {
+        this.clearVersionCheckTimer(deviceId);
+        return;
+      }
+      this.discoveryService!.sendConnectRequest(known.address);
+    }, 25000);
+
+    this.versionCheckTimers.set(deviceId, timer);
+  }
+
+  private clearVersionCheckTimer(deviceId: string): void {
+    const timer = this.versionCheckTimers.get(deviceId);
+    if (timer) {
+      clearInterval(timer);
+      this.versionCheckTimers.delete(deviceId);
     }
   }
 

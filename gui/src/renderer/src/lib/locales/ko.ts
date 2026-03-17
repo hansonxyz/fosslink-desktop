@@ -221,6 +221,9 @@ export const ko: Record<string, string> = {
   'version.downloadUpdate': '업데이트 다운로드',
   'version.orScanQR': '또는 휴대폰에서 이 QR 코드를 스캔하여 최신 버전을 다운로드하세요:',
   'version.sentToPhone': '업데이트 요청이 휴대폰으로 전송됨',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': '저장공간 분석기',

@@ -32,6 +32,7 @@
   import ShareUrlDialog from './components/ShareUrlDialog.svelte'
   import DialConfirmDialog from './components/DialConfirmDialog.svelte'
   import VersionLockout from './components/VersionLockout.svelte'
+  import VersionPopup from './components/VersionPopup.svelte'
   import StorageAnalyzer from './components/StorageAnalyzer.svelte'
   import ContactMigration from './components/ContactMigration.svelte'
   import PhoneGallery from './components/PhoneGallery.svelte'
@@ -162,6 +163,32 @@
   let showAbout = $state(false)
   let showShareUrl = $state(false)
   let telDialNumber = $state<string | null>(null)
+  let showVersionPopup = $state(false)
+  let versionPopupShownForVersion = $state<string | null>(null)
+
+  $effect(() => {
+    const ctx = connection.stateContext
+    if (ctx?.versionCompatible === false && ctx.peerClientType === 'fosslink') {
+      const peerVer = ctx.peerClientVersion ?? 'unknown'
+      if (peerVer !== versionPopupShownForVersion) {
+        versionPopupShownForVersion = peerVer
+        showVersionPopup = true
+      }
+    }
+  })
+
+  function handleVersionStatusClick(): void {
+    const ctx = connection.stateContext
+    if (ctx?.selfTooOld) {
+      window.api.openExternal('https://github.com/hansonxyz/fosslink-desktop/releases')
+    } else if (ctx?.peerTooOld) {
+      showVersionPopup = true
+    }
+  }
+
+  function handleVersionClick(): void {
+    handleVersionStatusClick()
+  }
 
   function closeExtras(): void {
     showSettings = false
@@ -200,6 +227,7 @@
   function handleUnpaired(): void {
     closeExtras()
     hasBeenConnected = false
+    versionPopupShownForVersion = null
     selectConversation(null)
     loadThread(null)
     conversations.raw.length = 0
@@ -253,6 +281,9 @@
     // Listen for tel: link activations (from OS protocol handler)
     window.api.onTelIncoming(handleTelIncoming)
 
+    // Listen for version status click from StatusIndicator
+    window.addEventListener('fosslink:version-click', handleVersionClick)
+
     // Auto-check for updates on startup if enabled
     if (settings.autoCheckUpdates) {
       setTimeout(() => {
@@ -261,6 +292,7 @@
     }
 
     return () => {
+      window.removeEventListener('fosslink:version-click', handleVersionClick)
       window.api.offTelIncoming(handleTelIncoming)
       cleanupConnection()
       cleanupDevices()
@@ -439,13 +471,6 @@
       <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onAnalyzeStorage={() => { showSettings = false; showStorageAnalyzer = true }} onContactMigration={() => { showSettings = false; showContactMigration = true }} />
     {:else if showFindPhone}
       <FindMyPhone onClose={() => (showFindPhone = false)} />
-    {:else if versionIncompatible}
-      <VersionLockout
-        peerTooOld={connection.stateContext?.peerTooOld === true}
-        selfTooOld={connection.stateContext?.selfTooOld === true}
-        peerVersion={connection.stateContext?.peerClientVersion ?? 'unknown'}
-        desktopVersion={appVersion}
-      />
     {:else if showPairing}
       <PairingPage />
     {:else if conversations.composingNew}
@@ -470,6 +495,15 @@
       phoneNumber={telDialNumber}
       onConfirm={() => void confirmTelDial()}
       onCancel={() => { telDialNumber = null }}
+    />
+  {/if}
+  {#if showVersionPopup}
+    <VersionPopup
+      peerTooOld={connection.stateContext?.peerTooOld === true}
+      selfTooOld={connection.stateContext?.selfTooOld === true}
+      peerVersion={connection.stateContext?.peerClientVersion ?? 'unknown'}
+      desktopVersion={appVersion}
+      onClose={() => { showVersionPopup = false }}
     />
   {/if}
 </div>

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { effectiveState, syncProgress } from '../stores/connection.svelte'
+  import { effectiveState, syncProgress, connection } from '../stores/connection.svelte'
   import { battery } from '../stores/battery.svelte'
   import { t } from '../stores/i18n.svelte'
+  import { GITHUB_DESKTOP_URL } from '../lib/links'
 
   const stateColors: Record<EffectiveState, 'red' | 'yellow' | 'green'> = {
     'no-daemon': 'red',
@@ -76,17 +77,46 @@
     battery.charging || battery.charge > 20 ? 'var(--success)' : 'var(--danger)'
   )
   const batteryFill = $derived(Math.max(0, Math.min(100, battery.charge)))
+
+  const versionMismatch = $derived(
+    connection.stateContext?.versionCompatible === false &&
+    connection.stateContext?.peerClientType === 'fosslink'
+  )
+
+  const versionLabel = $derived(
+    connection.stateContext?.selfTooOld
+      ? t('version.outdatedStatus')
+      : connection.stateContext?.peerTooOld
+        ? t('version.companionOutdatedStatus')
+        : ''
+  )
+
+  function handleVersionClick(): void {
+    if (connection.stateContext?.selfTooOld) {
+      window.api.openExternal(GITHUB_DESKTOP_URL + '/releases')
+    } else {
+      window.dispatchEvent(new Event('fosslink:version-click'))
+    }
+  }
 </script>
 
 <div class="status-indicator">
   <div class="status-indicator__left">
-    <span
-      class="status-indicator__dot"
-      class:status-indicator__dot--red={config.color === 'red'}
-      class:status-indicator__dot--yellow={config.color === 'yellow'}
-      class:status-indicator__dot--green={config.color === 'green'}
-    ></span>
-    <span class="status-indicator__label">{config.label}</span>
+    {#if versionMismatch}
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <span class="status-indicator__version-warn" onclick={handleVersionClick}>
+        <span class="status-indicator__dot status-indicator__dot--yellow"></span>
+        <span class="status-indicator__label status-indicator__label--clickable">{versionLabel}</span>
+      </span>
+    {:else}
+      <span
+        class="status-indicator__dot"
+        class:status-indicator__dot--red={config.color === 'red'}
+        class:status-indicator__dot--yellow={config.color === 'yellow'}
+        class:status-indicator__dot--green={config.color === 'green'}
+      ></span>
+      <span class="status-indicator__label">{config.label}</span>
+    {/if}
   </div>
   {#if battery.charge >= 0}
     <div class="status-indicator__battery">
@@ -161,6 +191,22 @@
   .status-indicator__label {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+  }
+
+  .status-indicator__version-warn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+  }
+
+  .status-indicator__label--clickable {
+    cursor: pointer;
+  }
+
+  .status-indicator__label--clickable:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
   }
 
   @keyframes pulse {

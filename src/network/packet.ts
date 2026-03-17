@@ -125,7 +125,8 @@ export const MSG_FS_WATCH_EVENT = 'fosslink.fs.watch_event' as const;
 export const MSG_FS_WATCH_EVENT_ACK = 'fosslink.fs.watch_event_ack' as const;
 
 export const CLIENT_TYPE = 'fosslink' as const;
-export const CLIENT_VERSION = '0.2.0' as const;
+export const CLIENT_VERSION = '1.0.0' as const;
+export const MIN_PEER_VERSION = '1.0.0' as const;
 
 // --- Interfaces ---
 
@@ -139,6 +140,7 @@ export interface IdentityBody {
   deviceName: string;
   deviceType: 'desktop' | 'laptop' | 'phone' | 'tablet';
   clientVersion: string;
+  minPeerVersion?: string;
 }
 
 // Device ID validation regex: 32-38 alphanumeric + dash/underscore
@@ -230,6 +232,7 @@ export function createIdentityMessage(options: {
     deviceName: options.deviceName,
     deviceType: 'desktop',
     clientVersion: CLIENT_VERSION,
+    minPeerVersion: MIN_PEER_VERSION,
   });
 }
 
@@ -270,11 +273,16 @@ export function validateIdentityMessage(msg: ProtocolMessage): IdentityBody {
     ? body['clientVersion']
     : '0.0.0';
 
+  const minPeerVersion = typeof body['minPeerVersion'] === 'string'
+    ? body['minPeerVersion']
+    : undefined;
+
   return {
     deviceId: body['deviceId'],
     deviceName: body['deviceName'],
     deviceType,
     clientVersion,
+    minPeerVersion,
   };
 }
 

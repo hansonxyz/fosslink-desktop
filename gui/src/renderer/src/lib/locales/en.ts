@@ -221,6 +221,9 @@ export const en: Record<string, string> = {
   'version.downloadUpdate': 'Download Update',
   'version.orScanQR': 'Or scan this QR code on your phone to download the latest version:',
   'version.sentToPhone': 'Update prompt sent to phone',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'Storage Analyzer',

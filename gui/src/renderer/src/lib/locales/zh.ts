@@ -221,6 +221,9 @@ export const zh: Record<string, string> = {
   'version.downloadUpdate': '下载更新',
   'version.orScanQR': '或在手机上扫描此二维码下载最新版本：',
   'version.sentToPhone': '更新请求已发送到手机',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': '存储分析器',

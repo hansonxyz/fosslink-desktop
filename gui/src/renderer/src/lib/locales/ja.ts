@@ -221,6 +221,9 @@ export const ja: Record<string, string> = {
   'version.downloadUpdate': 'アップデートをダウンロード',
   'version.orScanQR': 'または電話でこのQRコードをスキャンして最新バージョンをダウンロード：',
   'version.sentToPhone': '更新リクエストを電話に送信しました',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'ストレージ分析',

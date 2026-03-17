@@ -221,6 +221,9 @@ export const ar: Record<string, string> = {
   'version.downloadUpdate': 'تحميل التحديث',
   'version.orScanQR': 'أو امسح رمز QR هذا على هاتفك لتحميل أحدث إصدار:',
   'version.sentToPhone': 'تم إرسال طلب التحديث إلى الهاتف',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'محلل التخزين',

@@ -221,6 +221,9 @@ export const ru: Record<string, string> = {
   'version.downloadUpdate': 'Скачать обновление',
   'version.orScanQR': 'Или отсканируйте QR-код на телефоне для загрузки последней версии:',
   'version.sentToPhone': 'Запрос на обновление отправлен на телефон',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'Анализатор хранилища',

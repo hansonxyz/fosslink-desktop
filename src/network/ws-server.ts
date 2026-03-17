@@ -29,6 +29,7 @@ export interface DeviceConnection {
   ws: WebSocket;
   connected: boolean;
   clientVersion?: string;
+  minPeerVersion?: string;
   rootEnabled?: boolean;
   remoteAddress?: string;
   /** Send a protocol message to this device. */
@@ -280,6 +281,7 @@ export class WsServer {
       ws,
       connected: true,
       clientVersion: identity.clientVersion,
+      minPeerVersion: identity.minPeerVersion,
       remoteAddress,
       send(type: string, body: Record<string, unknown>): void {
         if (ws.readyState === WebSocket.OPEN) {

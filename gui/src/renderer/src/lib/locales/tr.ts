@@ -221,6 +221,9 @@ export const tr: Record<string, string> = {
   'version.downloadUpdate': 'Güncellemeyi indir',
   'version.orScanQR': 'Veya en son sürümü indirmek için telefonunuzla bu QR kodunu tarayın:',
   'version.sentToPhone': 'Güncelleme isteği telefona gönderildi',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'Depolama Analizörü',

@@ -221,6 +221,9 @@ export const hi: Record<string, string> = {
   'version.downloadUpdate': 'अपडेट डाउनलोड करें',
   'version.orScanQR': 'या नवीनतम संस्करण डाउनलोड करने के लिए अपने फ़ोन पर यह QR कोड स्कैन करें:',
   'version.sentToPhone': 'अपडेट अनुरोध फ़ोन पर भेजा गया',
+  'version.outdatedStatus': 'Outdated Software - Please Update',
+  'version.companionOutdatedStatus': 'Companion App Outdated',
+  'version.dismiss': 'Dismiss',
 
   // Storage analyzer
   'storage.title': 'स्टोरेज विश्लेषक',
