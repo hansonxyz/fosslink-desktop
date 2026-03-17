@@ -1,0 +1,121 @@
+{
+  "name": "fosslink-gui",
+  "version": "1.0.0",
+  "description": "FossLink Desktop Client",
+  "author": {
+    "name": "Brian Hanson",
+    "email": "brian@hansonxyz.com"
+  },
+  "homepage": "https://github.com/hansonxyz/fosslink",
+  "license": "MIT",
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "compile": "electron-vite build",
+    "build": "DEV_BUILD=1 npm run compile && (electron-builder --win --dir || true) && cd dist/win-unpacked/resources/app.asar.unpacked/node_modules/better-sqlite3 && npx prebuild-install --runtime electron --target 34.5.8 --platform win32 --arch x64",
+    "preview": "electron-vite preview",
+    "build:win": "npm run build",
+    "release:win": "npm run compile && electron-builder --win",
+    "release:linux": "npm run compile && electron-builder --linux",
+    "release:mac": "npm run compile && electron-builder --mac",
+    "build:linux": "npm run compile && electron-builder --linux",
+    "build:mac": "npm run compile && electron-builder --mac",
+    "postinstall": "electron-rebuild",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.7.3",
+    "emoji-picker-element": "^1.29.0",
+    "emoji-picker-element-data": "^1.8.0",
+    "js-yaml": "^4.1.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "selfsigned": "^2.4.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.0.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/qrcode": "^1.5.6",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
+    "electron-vite": "^3.0.0",
+    "qrcode": "^1.5.4",
+    "svelte": "^5.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.fosslink.app",
+    "productName": "FossLink",
+    "afterPack": "./scripts/after-pack.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "hansonxyz",
+      "repo": "fosslink-desktop"
+    },
+    "directories": {
+      "buildResources": "resources",
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "FossLink-Setup-${version}.${ext}",
+      "license": "../LICENSE",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
+    },
+    "win": {
+      "target": ["nsis"],
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg/win32/ffmpeg.exe",
+          "to": "ffmpeg/ffmpeg.exe"
+        },
+        {
+          "from": "resources/ffmpeg/win32/ffprobe.exe",
+          "to": "ffmpeg/ffprobe.exe"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg/linux/ffmpeg",
+          "to": "ffmpeg/ffmpeg"
+        },
+        {
+          "from": "resources/ffmpeg/linux/ffprobe",
+          "to": "ffmpeg/ffprobe"
+        }
+      ]
+    },
+    "mac": {
+      "target": "dmg",
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg/darwin/ffmpeg",
+          "to": "ffmpeg/ffmpeg"
+        },
+        {
+          "from": "resources/ffmpeg/darwin/ffprobe",
+          "to": "ffmpeg/ffprobe"
+        }
+      ]
+    }
+  }
+}

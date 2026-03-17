@@ -1,0 +1,35 @@
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+/* Prevent text selection on UI chrome (sidebar, headers, buttons, labels).
+   Message body text opts back in via component styles. */
+button, h1, h2, h3, label, nav, aside,
+.sidebar, .sidebar__header, .sidebar__title-row, .sidebar__actions {
+  user-select: none;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

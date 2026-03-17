@@ -1,0 +1,30 @@
+# Per project mandate: we commit everything including node_modules lockfile.
+# Only ignore runtime artifacts that are truly ephemeral.
+
+# Runtime
+dist/
+*.pid
+*.sock
+daemon.log
+daemon.log.*
+gui-debug.log
+gui-debug.log.*
+daemon-debug.log
+daemon-debug.log.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets
+SECRETS.md
+
+# Release output
+release/
