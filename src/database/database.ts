@@ -465,27 +465,43 @@ export class DatabaseService {
     };
   }
 
-  clearAllData(): void {
-    const db = this.ensureOpen();
-    db.exec(`
-      DELETE FROM conversations;
-      DELETE FROM messages;
-      DELETE FROM attachments;
-      DELETE FROM contacts;
-      DELETE FROM notifications;
-      DELETE FROM sync_state;
-    `);
+  /**
+   * Drop the database file entirely and reprovision from schema.
+   * This is the only way to wipe data — no selective DELETEs.
+   */
+  wipeAllData(): void {
+    this.ensureOpen();
+
+    // Close, delete db + WAL/SHM files
+    this.db!.close();
+    this.db = undefined;
+    this.stmts = undefined;
+
+    fs.unlinkSync(this.dbPath);
+    const walPath = this.dbPath + '-wal';
+    const shmPath = this.dbPath + '-shm';
+    if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+    if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+
+    // Reprovision fresh
+    this.db = new Database(this.dbPath);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
+    this.db.exec(SCHEMA_SQL);
+    this.db.prepare(
+      "INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('schema_hash', ?, ?)",
+    ).run(SCHEMA_HASH, Date.now());
+    this.prepareStatements();
+
+    this.logger.info('database.wipe', 'Database dropped and reprovisioned', {
+      path: this.dbPath,
+      schemaHash: SCHEMA_HASH,
+    });
   }
 
-  wipeAllData(): void {
-    const db = this.ensureOpen();
-    db.exec(`
-      DELETE FROM conversations;
-      DELETE FROM messages;
-      DELETE FROM attachments;
-      DELETE FROM contacts;
-      DELETE FROM notifications;
-    `);
+  /** Alias for wipeAllData — kept for backward compat. */
+  clearAllData(): void {
+    this.wipeAllData();
   }
 
   // --- Internal ---

@@ -347,7 +347,7 @@
           <p class="gallery__error">Device not connected</p>
         {:else}
           <div class="gallery__spinner"></div>
-          <p>Waiting for device...</p>
+          <p>{t('gallery.scanning')}</p>
         {/if}
       </div>
     {:else if gallery.viewMode === 'folders' && !inFolderDetail}

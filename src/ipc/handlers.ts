@@ -28,7 +28,7 @@ import {
   MSG_URL_SHARE,
   MSG_OPEN_APP_STORE,
 } from '../network/packet.js';
-import { getContactPhotosDir, getAttachmentsDir } from '../utils/paths.js';
+import { getContactPhotosDir, getAttachmentsDir, getGalleryCacheDir } from '../utils/paths.js';
 
 const log = createLogger('ipc-handlers');
 
@@ -524,10 +524,6 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
 
   // --- Storage Analysis ---
 
-  methods.set('storage.analyze', async () => {
-    return await daemon.requestStorageAnalysis();
-  });
-
   // --- Contact Migration ---
 
   methods.set('contacts.migration_scan', async () => {
@@ -607,16 +603,19 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
   // --- Resync ---
 
   methods.set('sms.resync_all', async () => {
-    // Clear all data including sync_state (forces full sync)
-    daemon.getDatabaseService().clearAllData();
-    log.info('ipc.resync', 'Cleared all database data');
+    // Drop and reprovision database (forces full sync)
+    daemon.getDatabaseService().wipeAllData();
+    log.info('ipc.resync', 'Database wiped and reprovisioned');
 
-    // Delete downloaded attachment files
+    // Delete all cached files
     const attachDir = getAttachmentsDir();
     fs.rmSync(attachDir, { recursive: true, force: true });
-    log.info('ipc.resync', 'Deleted attachment files', { dir: attachDir });
+    const galleryCacheDir = getGalleryCacheDir();
+    fs.rmSync(galleryCacheDir, { recursive: true, force: true });
+    log.info('ipc.resync', 'File caches deleted', { attachDir, galleryCacheDir });
 
-    // Start fresh sync (lastSyncTimestamp will be 0 → full sync)
+    // Stop any in-progress sync, then start fresh (lastSyncTimestamp will be 0 → full sync)
+    daemon.getEnhancedSyncHandler().stopSync();
     daemon.startSync();
     log.info('ipc.resync', 'Started full resync');
     return { ok: true };

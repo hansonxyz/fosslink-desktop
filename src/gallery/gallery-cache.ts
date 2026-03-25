@@ -141,6 +141,20 @@ export class GalleryCache {
     return diskPath;
   }
 
+  /**
+   * Clear the in-memory index. Call when the cache directory has been
+   * wiped on disk (e.g. unpair) so stale entries don't poison lookups.
+   */
+  clearIndex(): void {
+    this.index.clear();
+    this.sessionAccessed.clear();
+    this.indexDirty = false;
+    // Recreate directories in case they were deleted
+    fs.mkdirSync(this.thumbnailsDir, { recursive: true });
+    fs.mkdirSync(this.fullDir, { recursive: true });
+    logger.info('cache', 'Index cleared');
+  }
+
   markThumbnailFailed(filePath: string): void {
     const existing = this.index.get(filePath);
     const hash = this.pathHash(filePath);

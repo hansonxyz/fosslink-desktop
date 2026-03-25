@@ -33,7 +33,11 @@
 
   function handleBackdropClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) {
-      closeLightbox()
+      if (isZoomed) {
+        resetZoom()
+      } else {
+        closeLightbox()
+      }
     }
   }
 
@@ -58,7 +62,11 @@
 
     if (e.key === 'Escape') {
       e.preventDefault()
-      closeLightbox()
+      if (isZoomed) {
+        resetZoom()
+      } else {
+        closeLightbox()
+      }
       return
     }
 
@@ -127,6 +135,88 @@
     }
   }
 
+  // --- Zoom/pan (Signal-style) ---
+  const ZOOM_SCALE = 3
+  let isZoomed = $state(false)
+  let zoomX = $state(0)
+  let zoomY = $state(0)
+  // Cached image dimensions at zoom time
+  let zoomMaxX = 0
+  let zoomMaxY = 0
+  let zoomScreenW = 0
+  let zoomScreenH = 0
+
+  function handleImageClick(e: MouseEvent): void {
+    const img = e.currentTarget as HTMLImageElement
+    if (!img) return
+
+    if (isZoomed) {
+      // Unzoom
+      isZoomed = false
+      zoomX = 0
+      zoomY = 0
+      return
+    }
+
+    // Zoom in, centered on click point
+    const rect = img.getBoundingClientRect()
+    zoomMaxX = rect.width
+    zoomMaxY = rect.height
+    zoomScreenW = window.innerWidth
+    zoomScreenH = window.innerHeight
+
+    const offsetX = e.clientX - rect.left - rect.width / 2
+    const offsetY = e.clientY - rect.top - rect.height / 2
+
+    let posX = -offsetX * ZOOM_SCALE
+    let posY = -offsetY * ZOOM_SCALE
+
+    posX = clampPan(posX, zoomMaxX, zoomScreenW)
+    posY = clampPan(posY, zoomMaxY, zoomScreenH)
+
+    zoomX = posX
+    zoomY = posY
+    isZoomed = true
+  }
+
+  function handleMouseMove(e: MouseEvent): void {
+    if (!isZoomed) return
+
+    // Mouse position relative to screen center drives pan
+    const offsetX = zoomScreenW / 2 - e.clientX
+    const offsetY = zoomScreenH / 2 - e.clientY
+
+    let posX = offsetX * ZOOM_SCALE
+    let posY = offsetY * ZOOM_SCALE
+
+    posX = clampPan(posX, zoomMaxX, zoomScreenW)
+    posY = clampPan(posY, zoomMaxY, zoomScreenH)
+
+    zoomX = posX
+    zoomY = posY
+  }
+
+  function clampPan(value: number, imageSize: number, screenSize: number): number {
+    const zoomedSize = imageSize * ZOOM_SCALE
+    if (zoomedSize <= screenSize) return 0
+    const max = (zoomedSize - screenSize) / 2
+    return Math.max(-max, Math.min(max, value))
+  }
+
+  // Reset zoom when navigating or closing
+  function resetZoom(): void {
+    isZoomed = false
+    zoomX = 0
+    zoomY = 0
+  }
+
+  // Reset zoom when lightbox item changes
+  $effect(() => {
+    void lightbox.current?.galleryIndex
+    void lightbox.current?.src
+    resetZoom()
+  })
+
   function handleContextMenu(e: MouseEvent): void {
     if (!lightbox.current) return
     e.preventDefault()
@@ -157,8 +247,8 @@
     onkeydown={handleProxyKeydown}
   ></div>
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="lightbox" onclick={handleBackdropClick}>
-    <div class="lightbox__toolbar">
+  <div class="lightbox" class:lightbox--zoomed={isZoomed} onclick={handleBackdropClick} onmousemove={handleMouseMove}>
+    <div class="lightbox__toolbar" class:lightbox__toolbar--hidden={isZoomed}>
       <button class="lightbox__btn" onclick={handleSave} title="Save">
         <svg viewBox="0 0 24 24" width="24" height="24">
           <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
@@ -171,7 +261,7 @@
       </button>
     </div>
 
-    {#if lightbox.isGallery && lightbox.canPrev}
+    {#if lightbox.isGallery && lightbox.canPrev && !isZoomed}
       <button class="lightbox__nav lightbox__nav--prev" onclick={() => navigateAndLoad(-1)} title="Previous">
         <svg viewBox="0 0 24 24" width="36" height="36">
           <path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
@@ -179,7 +269,7 @@
       </button>
     {/if}
 
-    {#if lightbox.isGallery && lightbox.canNext}
+    {#if lightbox.isGallery && lightbox.canNext && !isZoomed}
       <button class="lightbox__nav lightbox__nav--next" onclick={() => navigateAndLoad(1)} title="Next">
         <svg viewBox="0 0 24 24" width="36" height="36">
           <path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
@@ -191,7 +281,15 @@
     <div class="lightbox__content" onclick={(e) => e.stopPropagation()}>
       {#if lightbox.current.type === 'image'}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-        <img class="lightbox__media" src={lightbox.current.src} alt="Full size" onclick={closeLightbox} oncontextmenu={handleContextMenu} />
+        <img
+          class="lightbox__media"
+          class:lightbox__media--zoomed={isZoomed}
+          src={lightbox.current.src}
+          alt="Full size"
+          onclick={handleImageClick}
+          oncontextmenu={handleContextMenu}
+          style:transform="translate({zoomX}px, {zoomY}px) scale({isZoomed ? ZOOM_SCALE : 1})"
+        />
       {:else if lightbox.current.src}
         <!-- svelte-ignore a11y_media_has_caption -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -299,6 +397,23 @@
     max-height: 90vh;
     object-fit: contain;
     border-radius: 4px;
+    cursor: zoom-in;
+    transition: transform 0.15s ease-out;
+  }
+
+  .lightbox__media--zoomed {
+    cursor: zoom-out;
+    transition: none;
+  }
+
+  .lightbox--zoomed {
+    cursor: zoom-out;
+  }
+
+  .lightbox__toolbar--hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
   }
 
   .lightbox__loading {

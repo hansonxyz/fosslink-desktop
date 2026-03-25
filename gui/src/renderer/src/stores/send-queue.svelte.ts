@@ -152,6 +152,14 @@ function applyStatus(tempId: string, daemonQueueId: string, status: 'sent' | 'ti
  * Call when new messages arrive from the phone (the synced
  * versions replace the optimistic ones).
  */
+export function resetSendQueue(): void {
+  for (const timer of removalTimers.values()) clearTimeout(timer)
+  removalTimers.clear()
+  daemonToTemp.clear()
+  earlyStatuses.clear()
+  pending.length = 0
+}
+
 export function clearSentMessages(): void {
   for (let i = pending.length - 1; i >= 0; i--) {
     if (pending[i]!.status === 'sent') {

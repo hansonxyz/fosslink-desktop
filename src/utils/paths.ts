@@ -95,6 +95,13 @@ export function getContactPhotosDir(): string {
 }
 
 /**
+ * Get the gallery thumbnail/file cache directory.
+ */
+export function getGalleryCacheDir(): string {
+  return path.join(getDataDir(), 'gallery-cache');
+}
+
+/**
  * Get the trusted certificates directory.
  */
 export function getTrustedCertsDir(): string {

@@ -20,6 +20,12 @@ export function isPreviewLoading(url: string): boolean {
   return pending.has(url)
 }
 
+export function resetLinkPreviews(): void {
+  cache.clear()
+  pending.clear()
+  version++
+}
+
 export function fetchPreview(url: string): void {
   if (cache.has(url) || pending.has(url)) return
 

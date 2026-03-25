@@ -13,11 +13,10 @@
     onClose: () => void
     onUnpaired: () => void
     onAbout: () => void
-    onAnalyzeStorage?: () => void
     onContactMigration?: () => void
   }
 
-  const { onClose, onUnpaired, onAbout, onAnalyzeStorage, onContactMigration }: Props = $props()
+  const { onClose, onUnpaired, onAbout, onContactMigration }: Props = $props()
 
   let confirmingUnpair = $state(false)
   let unpairing = $state(false)
@@ -207,6 +206,58 @@
           <span class="settings-panel__value settings-panel__value--muted">{t('settings.waitingDevice')}</span>
         </div>
       {/if}
+
+      {#if devices.pairedIds.length > 0}
+        {#if connection.stateContext?.peerTooOld}
+          <button
+            class="settings-panel__btn settings-panel__btn--primary"
+            onclick={() => void window.api.invoke('device.open_app_store')}
+            style="margin-top: var(--space-3)"
+          >
+            {t('version.updateCompanion')}
+          </button>
+        {/if}
+
+        <div class="settings-panel__device-actions">
+          <button
+            class="settings-panel__btn settings-panel__btn--outline"
+            onclick={() => void handleResync()}
+          >
+            {t('settings.resyncBtn')}
+          </button>
+
+          {#if confirmingUnpair}
+            <div class="settings-panel__confirm">
+              <p class="settings-panel__confirm-text">
+                {t('settings.unpairConfirm', { device: cachedName ?? 'this device' })}
+              </p>
+              <div class="settings-panel__confirm-actions">
+                <button
+                  class="settings-panel__btn settings-panel__btn--danger"
+                  onclick={() => void handleUnpair()}
+                  disabled={unpairing}
+                >
+                  {unpairing ? t('settings.unpairing') : t('settings.unpairBtn')}
+                </button>
+                <button
+                  class="settings-panel__btn settings-panel__btn--cancel"
+                  onclick={() => (confirmingUnpair = false)}
+                  disabled={unpairing}
+                >
+                  {t('settings.cancelBtn')}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <button
+              class="settings-panel__btn settings-panel__btn--outline-danger"
+              onclick={() => (confirmingUnpair = true)}
+            >
+              {t('settings.unpairDevice')}
+            </button>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!-- Extras -->
@@ -233,19 +284,6 @@
             {#if webdavRunning}
               <div class="settings-panel__extra-badge"></div>
             {/if}
-          </button>
-
-          <!-- Storage Explorer -->
-          <button class="settings-panel__extra-card" onclick={() => onAnalyzeStorage?.()}>
-            <div class="settings-panel__extra-icon">
-              <svg viewBox="0 0 24 24" width="28" height="28">
-                <path fill="currentColor" d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/>
-              </svg>
-            </div>
-            <div class="settings-panel__extra-text">
-              <span class="settings-panel__extra-title">{t('extras.storageTitle')}</span>
-              <span class="settings-panel__extra-subtitle">{t('extras.storageSubtitle')}</span>
-            </div>
           </button>
 
           <!-- Contact Migration -->
@@ -408,61 +446,6 @@
         </div>
       {/if}
     </div>
-
-    <!-- Device management -->
-    {#if devices.pairedIds.length > 0}
-      <div class="settings-panel__section">
-        <h3 class="settings-panel__section-title">{t('settings.deviceSection')}</h3>
-
-        {#if connection.stateContext?.peerTooOld}
-          <button
-            class="settings-panel__btn settings-panel__btn--primary"
-            onclick={() => void window.api.invoke('device.open_app_store')}
-            style="margin-bottom: var(--space-3)"
-          >
-            {t('version.updateCompanion')}
-          </button>
-        {/if}
-
-        <button
-            class="settings-panel__btn settings-panel__btn--outline"
-            onclick={() => void handleResync()}
-          >
-            {t('settings.resyncBtn')}
-          </button>
-
-        {#if confirmingUnpair}
-          <div class="settings-panel__confirm">
-            <p class="settings-panel__confirm-text">
-              {t('settings.unpairConfirm', { device: cachedName ?? 'this device' })}
-            </p>
-            <div class="settings-panel__confirm-actions">
-              <button
-                class="settings-panel__btn settings-panel__btn--danger"
-                onclick={() => void handleUnpair()}
-                disabled={unpairing}
-              >
-                {unpairing ? t('settings.unpairing') : t('settings.unpairBtn')}
-              </button>
-              <button
-                class="settings-panel__btn settings-panel__btn--cancel"
-                onclick={() => (confirmingUnpair = false)}
-                disabled={unpairing}
-              >
-                {t('settings.cancelBtn')}
-              </button>
-            </div>
-          </div>
-        {:else}
-          <button
-            class="settings-panel__btn settings-panel__btn--outline-danger"
-            onclick={() => (confirmingUnpair = true)}
-          >
-            {t('settings.unpairDevice')}
-          </button>
-        {/if}
-      </div>
-    {/if}
 
     <div class="settings-panel__section">
       <button
@@ -677,6 +660,13 @@
     height: 8px;
     border-radius: var(--radius-full);
     background-color: var(--success);
+  }
+
+  .settings-panel__device-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
   }
 
   /* Buttons and other existing styles */

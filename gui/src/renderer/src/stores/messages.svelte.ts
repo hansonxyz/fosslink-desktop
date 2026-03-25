@@ -162,6 +162,13 @@ export const displayMessages: { current: DisplayMessage[] } = {
 /**
  * Load messages for a thread. Resets state and fetches from daemon.
  */
+export function resetMessages(): void {
+  messages.threadId = null
+  messages.rows.length = 0
+  messages.loading = false
+  attachmentsByMessage.clear()
+}
+
 export function loadThread(threadId: number | null): void {
   if (threadId === null) {
     messages.threadId = null

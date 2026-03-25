@@ -237,13 +237,15 @@ export class EnhancedSyncHandler {
    * Stop an in-progress sync. Clears all timers.
    */
   stopSync(): void {
-    if (!this.syncing) return;
-
+    const wasSyncing = this.syncing;
     this.syncing = false;
+    this.recoveryAttempted = false;
     this.clearSafetyTimer();
     this.clearResyncInterval();
 
-    this.logger.info('protocol.enhanced-sync', 'Sync stopped');
+    if (wasSyncing) {
+      this.logger.info('protocol.enhanced-sync', 'Sync stopped');
+    }
   }
 
   /**

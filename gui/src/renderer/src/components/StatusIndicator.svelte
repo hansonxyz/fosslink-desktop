@@ -1,5 +1,6 @@
 <script lang="ts">
   import { effectiveState, syncProgress, connection } from '../stores/connection.svelte'
+  import { devices } from '../stores/devices.svelte'
   import { battery } from '../stores/battery.svelte'
   import { t } from '../stores/i18n.svelte'
   import { GITHUB_DESKTOP_URL } from '../lib/links'
@@ -37,6 +38,13 @@
   let displayState = $state<EffectiveState>(effectiveState.current)
   let initialSyncDone = $state(false)
   let degradeTimer: ReturnType<typeof setTimeout> | undefined
+
+  // Reset initialSyncDone when unpaired (no paired devices)
+  $effect(() => {
+    if (devices.pairedIds.length === 0) {
+      initialSyncDone = false
+    }
+  })
 
   $effect(() => {
     const state = effectiveState.current

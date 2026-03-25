@@ -13,6 +13,7 @@ export const en: Record<string, string> = {
   'app.sidebarPlaceholder': 'Connect a device to see conversations',
   'app.sidebarPlaceholderAlt': 'Conversations will appear here',
   'app.emptyState': 'Select a conversation to start messaging',
+  'app.syncWait': 'Please wait for initial message sync',
 
   // Status indicator
   'status.noDaemon': 'Daemon not running',
@@ -34,6 +35,7 @@ export const en: Record<string, string> = {
   'pairing.reject': 'Reject',
   'pairing.title': 'Pairing',
   'pairing.confirmCode': 'Confirm this code matches on your phone',
+  'pairing.acceptOnPhone': 'Accept the pairing request on your phone',
   'pairing.connectionError': 'Connection Error',
   'pairing.unexpectedError': 'An unexpected error occurred',
   'pairing.autoRecover': 'The daemon will attempt to recover automatically',
@@ -182,7 +184,7 @@ export const en: Record<string, string> = {
   // About dialog
   'about.close': 'Close',
   'about.name': 'FossLink',
-  'about.version': 'Version 1.0.0',
+  'about.version': 'Version 1.1.0',
   'about.credit': '2026 by Brian Hanson',
   'about.releasedUnder': 'Released under the',
   'about.mitLicense': 'MIT License',
@@ -225,19 +227,8 @@ export const en: Record<string, string> = {
   'version.companionOutdatedStatus': 'Companion App Outdated',
   'version.dismiss': 'Dismiss',
 
-  // Storage analyzer
-  'storage.title': 'Storage Analyzer',
-  'storage.analyzing': 'Analyzing phone storage...',
-  'storage.analyzeBtn': 'Analyze Storage',
-  'storage.close': 'Close',
-  'storage.free': '{free} GB free of {total} GB',
-  'storage.error': 'Storage analysis failed',
-  'storage.noRoot': 'Enable root integration on your phone for a detailed breakdown.',
-
   // Extras section
   'extras.title': 'Extras',
-  'extras.storageTitle': 'Storage Explorer',
-  'extras.storageSubtitle': 'Analyze phone storage usage',
   'extras.filesTitle': 'Phone Files',
   'extras.filesSubtitle': 'Browse phone filesystem',
   'extras.filesMounted': 'Mounted',

@@ -109,6 +109,11 @@ export function getItemsByFolder(): Array<{ folder: string; items: GalleryItem[]
 export async function scanGallery(): Promise<void> {
   scanState = 'scanning'
   scanError = ''
+  // Clear stale thumbnail/download states (cache may have been wiped on unpair)
+  for (const k of Object.keys(thumbnailStates)) delete thumbnailStates[k]
+  for (const k of Object.keys(downloadStates)) delete downloadStates[k]
+  thumbQueue.length = 0
+  activeThumbRequests = 0
   try {
     const result = (await window.api.invoke('gallery.scan')) as { items: GalleryItem[] }
     items = result.items ?? []

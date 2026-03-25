@@ -27,7 +27,7 @@ import {
   resetLogger,
 } from '../utils/logger.js';
 import type { Logger } from '../utils/logger.js';
-import { getDataDir, getConfigPath, getTrustedCertsDir, getSocketPath, getAttachmentsDir, getContactPhotosDir } from '../utils/paths.js';
+import { getDataDir, getConfigPath, getTrustedCertsDir, getSocketPath, getAttachmentsDir, getContactPhotosDir, getGalleryCacheDir } from '../utils/paths.js';
 import { DatabaseService } from '../database/database.js';
 import {
   loadOrCreateDeviceId,
@@ -58,8 +58,6 @@ import {
   MSG_URL_SHARE,
   MSG_CONTACTS_UIDS_RESPONSE,
   MSG_CONTACTS_VCARDS_RESPONSE,
-  MSG_STORAGE_REQUEST,
-  MSG_STORAGE_ANALYSIS,
   MSG_CONTACTS_MIGRATION_SCAN,
   MSG_CONTACTS_MIGRATION_SCAN_RESPONSE,
   MSG_CONTACTS_MIGRATION_EXECUTE,
@@ -174,9 +172,6 @@ export class Daemon {
   private urlShareCallbacks: UrlShareCallback[] = [];
 
   // Storage analysis pending request
-  private storageAnalysisResolve: ((data: Record<string, unknown>) => void) | undefined;
-  private storageAnalysisReject: ((err: Error) => void) | undefined;
-  private storageAnalysisTimeout: ReturnType<typeof setTimeout> | undefined;
 
   // Contact migration pending request
   private contactMigrationResolve: ((data: Record<string, unknown>) => void) | undefined;
@@ -347,6 +342,28 @@ export class Daemon {
             address: conn.remoteAddress ?? '',
             port: WS_PORT,
           });
+
+          // Wire handlers that need a send function (same as reconnect path)
+          if (this.filesystemHandler) {
+            this.filesystemHandler.setSendFunction((msg) => conn.send(msg.type, msg.body));
+          }
+          if (this.galleryHandler) {
+            this.galleryHandler.setSendFunction((msg) => conn.send(msg.type, msg.body));
+          }
+
+          // Re-request contacts
+          if (this.contactsHandler) {
+            this.contactsHandler.requestAllUidsTimestamps();
+          }
+
+          // Request battery state
+          this.requestBattery(conn);
+        }
+
+        // Cancel pending WebDAV shutdown
+        if (this.webdavDisconnectTimer) {
+          clearTimeout(this.webdavDisconnectTimer);
+          this.webdavDisconnectTimer = undefined;
         }
 
         if (this.config!.sync.autoSync && !this.sessionSynced) {
@@ -462,8 +479,9 @@ export class Daemon {
           this.startSync();
         }
 
-        // Pre-scan gallery file list for instant gallery loading
-        if (this.galleryHandler) {
+        // Pre-scan gallery file list after sync completes (phone is too busy during sync)
+        // For reconnections where sync is skipped, pre-scan immediately
+        if (this.galleryHandler && this.sessionSynced) {
           this.galleryHandler.preScan().catch(() => {});
         }
       } else {
@@ -504,17 +522,25 @@ export class Daemon {
       this.versionCheckInfo.delete(deviceId);
       this.clearVersionCheckTimer(deviceId);
 
+      // Abort any in-progress sync so it doesn't set sessionSynced=true
+      // or block the next sync with "already in progress"
+      if (this.enhancedSyncHandler) {
+        this.enhancedSyncHandler.stopSync();
+      }
+
       const conn = this.wsServer!.getConnection(deviceId);
       if (conn) {
         conn.close();
       }
 
-      // Wipe cached files
+      // Wipe all cached files
       const attachDir = getAttachmentsDir();
       fs.rmSync(attachDir, { recursive: true, force: true });
       const contactPhotosDir = getContactPhotosDir();
       fs.rmSync(contactPhotosDir, { recursive: true, force: true });
-      this.logger!.info('core.daemon', 'File caches wiped', { attachDir, contactPhotosDir });
+      const galleryCacheDir = getGalleryCacheDir();
+      fs.rmSync(galleryCacheDir, { recursive: true, force: true });
+      this.logger!.info('core.daemon', 'File caches wiped', { attachDir, contactPhotosDir, galleryCacheDir });
 
       // Wipe database data
       if (this.databaseService?.isOpen()) {
@@ -674,10 +700,15 @@ export class Daemon {
       this.galleryHandler!.mergeItems(items);
     });
 
-    // Wire sync completion to session tracking
+    // Wire sync completion to session tracking + gallery pre-scan
     this.enhancedSyncHandler.onSyncComplete(() => {
       this.sessionSynced = true;
       this.logger!.info('core.daemon', 'Session sync completed');
+
+      // Pre-scan gallery now that the phone is free
+      if (this.galleryHandler) {
+        this.galleryHandler.preScan().catch(() => {});
+      }
     });
 
     // --- Register protocol handlers on router ---
@@ -780,19 +811,6 @@ export class Daemon {
     });
 
     // Storage analysis response from phone
-    this.messageRouter.registerHandler(MSG_STORAGE_ANALYSIS, (msg) => {
-      this.logger!.info('core.daemon', 'Storage analysis received from phone');
-      if (this.storageAnalysisResolve) {
-        if (this.storageAnalysisTimeout) {
-          clearTimeout(this.storageAnalysisTimeout);
-          this.storageAnalysisTimeout = undefined;
-        }
-        this.storageAnalysisResolve(msg.body);
-        this.storageAnalysisResolve = undefined;
-        this.storageAnalysisReject = undefined;
-      }
-    });
-
     // Contact migration responses from phone
     this.messageRouter.registerHandler(MSG_CONTACTS_MIGRATION_SCAN_RESPONSE, (msg) => {
       if (this.contactMigrationResolve) {
@@ -1224,39 +1242,6 @@ export class Daemon {
   }
 
   // --- Storage analysis ---
-
-  requestStorageAnalysis(): Promise<Record<string, unknown>> {
-    const devices = this.wsServer!.getConnectedDeviceIds();
-    if (devices.length === 0) {
-      return Promise.reject(new Error('No device connected'));
-    }
-    const conn = this.wsServer!.getConnection(devices[0]!);
-    if (!conn) {
-      return Promise.reject(new Error('No device connected'));
-    }
-
-    // Cancel any pending request
-    if (this.storageAnalysisReject) {
-      this.storageAnalysisReject(new Error('Cancelled by new request'));
-      if (this.storageAnalysisTimeout) {
-        clearTimeout(this.storageAnalysisTimeout);
-      }
-    }
-
-    return new Promise<Record<string, unknown>>((resolve, reject) => {
-      this.storageAnalysisResolve = resolve;
-      this.storageAnalysisReject = reject;
-      this.storageAnalysisTimeout = setTimeout(() => {
-        this.storageAnalysisResolve = undefined;
-        this.storageAnalysisReject = undefined;
-        this.storageAnalysisTimeout = undefined;
-        reject(new Error('Storage analysis timed out (60s)'));
-      }, 60000);
-
-      conn.send(MSG_STORAGE_REQUEST, {});
-      this.logger!.info('core.daemon', 'Storage analysis requested from phone');
-    });
-  }
 
   // --- Contact migration ---
 

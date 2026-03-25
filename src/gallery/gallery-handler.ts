@@ -94,6 +94,7 @@ export class GalleryHandler {
     this.sendMessage = null;
     this.cachedItems = null;
     this.preScanInProgress = false;
+    this.cache.clearIndex();
   }
 
   /**

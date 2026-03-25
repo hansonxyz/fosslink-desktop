@@ -33,10 +33,10 @@
   import DialConfirmDialog from './components/DialConfirmDialog.svelte'
   import VersionLockout from './components/VersionLockout.svelte'
   import VersionPopup from './components/VersionPopup.svelte'
-  import StorageAnalyzer from './components/StorageAnalyzer.svelte'
   import ContactMigration from './components/ContactMigration.svelte'
   import PhoneGallery from './components/PhoneGallery.svelte'
   import PairingPage from './pages/PairingPage.svelte'
+  import { resetAppData } from './stores/reset'
 
   const CONVERSATION_STATES: Set<EffectiveState> = new Set([
     'connected',
@@ -157,7 +157,6 @@
 
   let showSettings = $state(false)
   let showFindPhone = $state(false)
-  let showStorageAnalyzer = $state(false)
   let showContactMigration = $state(false)
   let showGallery = $state(false)
   let showAbout = $state(false)
@@ -193,7 +192,6 @@
   function closeExtras(): void {
     showSettings = false
     showFindPhone = false
-    showStorageAnalyzer = false
     showContactMigration = false
     showGallery = false
   }
@@ -228,9 +226,7 @@
     closeExtras()
     hasBeenConnected = false
     versionPopupShownForVersion = null
-    selectConversation(null)
-    loadThread(null)
-    conversations.raw.length = 0
+    resetAppData()
   }
 
   const MIN_SIDEBAR = 200
@@ -317,7 +313,6 @@
       if (showAbout) { showAbout = false; return }
       if (showGallery) { showGallery = false; return }
       if (showContactMigration) { showContactMigration = false; return }
-      if (showStorageAnalyzer) { showStorageAnalyzer = false; return }
       if (showSettings) { showSettings = false; return }
       if (showFindPhone) { showFindPhone = false; return }
       if (conversations.composingNew) { exitCompose(); return }
@@ -465,10 +460,8 @@
       <PhoneGallery onClose={() => (showGallery = false)} />
     {:else if showContactMigration}
       <ContactMigration onClose={() => (showContactMigration = false)} />
-    {:else if showStorageAnalyzer}
-      <StorageAnalyzer onClose={() => (showStorageAnalyzer = false)} />
     {:else if showSettings}
-      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onAnalyzeStorage={() => { showSettings = false; showStorageAnalyzer = true }} onContactMigration={() => { showSettings = false; showContactMigration = true }} />
+      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onContactMigration={() => { showSettings = false; showContactMigration = true }} />
     {:else if showFindPhone}
       <FindMyPhone onClose={() => (showFindPhone = false)} />
     {:else if showPairing}
@@ -479,7 +472,12 @@
       <MessageThread />
     {:else}
       <div class="main-panel__empty">
-        <p class="main-panel__empty-text">{t('app.emptyState')}</p>
+        {#if effectiveState.current === 'syncing' && conversations.raw.length === 0}
+          <p class="main-panel__empty-text">{t('app.syncWait')}</p>
+          <div class="main-panel__sync-spinner"></div>
+        {:else}
+          <p class="main-panel__empty-text">{t('app.emptyState')}</p>
+        {/if}
       </div>
     {/if}
   </main>
@@ -607,6 +605,7 @@
   .main-panel__empty {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
   }
@@ -614,6 +613,20 @@
   .main-panel__empty-text {
     color: var(--text-muted);
     font-size: var(--font-size-lg);
+  }
+
+  .main-panel__sync-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-top: var(--space-4);
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .main-panel--drop-target {

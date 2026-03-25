@@ -6,7 +6,8 @@
     devices,
     acceptIncomingPairing,
     rejectIncomingPairing,
-    clearPairingError
+    clearPairingError,
+    unpairDevice,
   } from '../stores/devices.svelte'
   import DeviceList from '../components/DeviceList.svelte'
   import { t } from '../stores/i18n.svelte'
@@ -19,6 +20,15 @@
       qrCodeImage = url
     })
   })
+
+  function cancelOutgoingPairing(): void {
+    const deviceId = devices.pairingDeviceId
+    if (deviceId) {
+      void unpairDevice(deviceId)
+    }
+    devices.outgoingPairingKey = null
+    devices.pairingDeviceId = null
+  }
 
   const hasAnyDevices = $derived(
     devices.discovered.length > 0 || devices.pairedIds.length > 0,
@@ -60,8 +70,16 @@
     <div class="pairing-page__center">
       <h2 class="pairing-page__title">{t('pairing.title')}</h2>
       <div class="pairing-page__verification-key">{devices.outgoingPairingKey}</div>
-      <p class="pairing-page__subtitle">{t('pairing.confirmCode')}</p>
+      <p class="pairing-page__subtitle">{t('pairing.acceptOnPhone')}</p>
       <div class="pairing-page__spinner"></div>
+      <div class="pairing-page__actions">
+        <button
+          class="pairing-page__btn pairing-page__btn--reject"
+          onclick={cancelOutgoingPairing}
+        >
+          {t('settings.cancelBtn')}
+        </button>
+      </div>
     </div>
 
   {:else if effectiveState.current === 'error'}
