@@ -1,7 +1,7 @@
 <script lang="ts">
   import { conversations } from '../stores/conversations.svelte'
   import { displayConversations } from '../stores/conversations.svelte'
-  import { messages, displayMessages, loadThread } from '../stores/messages.svelte'
+  import { messages, displayMessages, loadThread, addPendingReaction } from '../stores/messages.svelte'
   import { clearAttachmentStates, requestDownload } from '../stores/attachments.svelte'
   import {
     sendMessage as queueSendMessage,
@@ -10,6 +10,7 @@
     retrySend,
   } from '../stores/send-queue.svelte'
   import type { PendingMessage } from '../stores/send-queue.svelte'
+  import { TAPBACK_REACTIONS, parseTapback } from '../lib/tapback'
   import MessageBubble from './MessageBubble.svelte'
   import Avatar from './Avatar.svelte'
   import ContactDetail from './ContactDetail.svelte'
@@ -134,10 +135,10 @@
     }, 400)
   })
 
-  // Pending messages for the current thread
+  // Pending messages for the current thread (hide tapback reactions — shown as emoji badges instead)
   const pendingMsgs = $derived(
     conversations.selectedThreadId !== null
-      ? getPendingMessages(conversations.selectedThreadId)
+      ? getPendingMessages(conversations.selectedThreadId).filter((m) => !parseTapback(m.body))
       : [],
   )
 
@@ -169,6 +170,27 @@
 
     await tick()
     textareaEl?.focus()
+  }
+
+  function handleReact(messageId: number, messageBody: string, verb: string): void {
+    if (!selectedConversation) return
+    const address = selectedConversation.addresses[0]
+    if (!address) return
+
+    // Truncate to ~50 chars like iPhone does for long messages
+    let quoted = messageBody
+    if (quoted.length > 50) {
+      quoted = quoted.slice(0, 50) + '\u2026'
+    }
+
+    const tapbackBody = `${verb} \u201C${quoted}\u201D`
+    const threadId = selectedConversation.threadId
+
+    // Show reaction immediately (optimistic)
+    const emoji = TAPBACK_REACTIONS.find((r) => r.verb === verb)?.emoji ?? '\u{1F44D}'
+    addPendingReaction(messageId, emoji)
+
+    void queueSendMessage(threadId, address, tapbackBody, [])
   }
 
   function classifyMime(mimeType: string): 'image' | 'video' | 'audio' | 'other' {
@@ -745,7 +767,7 @@
             <span class="message-thread__timestamp-label">{msg.timestampLabel}</span>
           </div>
         {/if}
-        <MessageBubble message={msg} />
+        <MessageBubble message={msg} onReact={handleReact} />
       {/each}
       <div style:height="{visible.bottomPad}px"></div>
       {#each pendingMsgs as pmsg (pmsg.queueId)}

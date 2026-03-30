@@ -1,6 +1,6 @@
 {
   "name": "fosslink",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "FossLink SMS daemon and CLI for desktop",
   "type": "module",
   "engines": {

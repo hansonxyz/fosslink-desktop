@@ -10,13 +10,56 @@
   import { t } from '../stores/i18n.svelte'
   import { resolvedLocale } from '../stores/i18n.svelte'
   import { settings } from '../stores/settings.svelte'
+  import { getEmojiName, TAPBACK_REACTIONS } from '../lib/tapback'
   import LinkPreview from './LinkPreview.svelte'
 
   interface Props {
     message: DisplayMessage
+    onReact?: (messageId: number, messageBody: string, verb: string) => void
   }
 
-  const { message }: Props = $props()
+  const { message, onReact }: Props = $props()
+
+  let showContextMenu = $state(false)
+  let menuX = $state(0)
+  let menuY = $state(0)
+  let showReactions = $state(false)
+
+  function handleBubbleContextMenu(e: MouseEvent): void {
+    // Don't override attachment context menus
+    const target = e.target as HTMLElement
+    if (target.closest('.attachment-clickable')) return
+
+    e.preventDefault()
+    showReactions = false
+    menuX = e.clientX
+    menuY = e.clientY
+    showContextMenu = true
+  }
+
+  function handleCopy(): void {
+    showContextMenu = false
+    if (message.body) {
+      void navigator.clipboard.writeText(message.body)
+    }
+  }
+
+  function handleShowReactions(): void {
+    showReactions = true
+  }
+
+  function handleReaction(verb: string): void {
+    showContextMenu = false
+    showReactions = false
+    if (message.body && onReact) {
+      onReact(message.id, message.body, verb)
+    }
+  }
+
+  function closeContextMenu(): void {
+    showContextMenu = false
+    showReactions = false
+  }
 
   const hasAttachments = $derived(message.attachments.length > 0)
   const hasReactions = $derived(message.reactions.length > 0)
@@ -154,10 +197,12 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message-bubble"
   class:message-bubble--sent={message.isSent}
   class:message-bubble--received={!message.isSent}
+  oncontextmenu={handleBubbleContextMenu}
 >
   {#if message.isSent}
     <span class="message-bubble__hover-time">{hoverTimestamp()}</span>
@@ -283,7 +328,7 @@
     {#if hasReactions}
       <div class="message-bubble__reactions">
         {#each message.reactions as reaction}
-          <span class="message-bubble__reaction" title={reaction.senderName ?? ''}>{reaction.emoji}</span>
+          <span class="message-bubble__reaction" title={[reaction.senderName, getEmojiName(reaction.emoji)].filter(Boolean).join(' \u2014 ')}>{reaction.emoji}</span>
         {/each}
       </div>
     {/if}
@@ -299,6 +344,34 @@
     <span class="message-bubble__hover-time">{hoverTimestamp()}</span>
   {/if}
 </div>
+
+{#if showContextMenu}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="ctx-backdrop" onclick={closeContextMenu}></div>
+  <div class="ctx-menu" style:left="{menuX}px" style:top="{menuY}px">
+    {#if !showReactions}
+      {#if message.body}
+        <button class="ctx-menu__item" onclick={handleCopy}>Copy</button>
+      {/if}
+      {#if !message.isSent && message.body && onReact}
+        <button class="ctx-menu__item" onclick={handleShowReactions}>
+          React
+          <span class="ctx-menu__arrow">&#9654;</span>
+        </button>
+      {/if}
+    {:else}
+      <div class="ctx-menu__reactions">
+        {#each TAPBACK_REACTIONS as r}
+          <button
+            class="ctx-menu__reaction"
+            onclick={() => handleReaction(r.verb)}
+            title={r.label}
+          >{r.emoji}</button>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style>
   .message-bubble {
@@ -574,5 +647,72 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* --- Message context menu --- */
+
+  .ctx-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+  }
+
+  .ctx-menu {
+    position: fixed;
+    z-index: 1000;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    padding: var(--space-1);
+    min-width: 120px;
+  }
+
+  .ctx-menu__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    text-align: left;
+  }
+
+  .ctx-menu__item:hover {
+    background-color: var(--bg-hover);
+  }
+
+  .ctx-menu__arrow {
+    font-size: 8px;
+    color: var(--text-muted);
+    margin-left: var(--space-2);
+  }
+
+  .ctx-menu__reactions {
+    display: flex;
+    gap: 2px;
+    padding: var(--space-1);
+  }
+
+  .ctx-menu__reaction {
+    font-size: 22px;
+    line-height: 1;
+    padding: var(--space-1);
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color 0.1s, transform 0.1s;
+  }
+
+  .ctx-menu__reaction:hover {
+    background-color: var(--bg-hover);
+    transform: scale(1.2);
   }
 </style>

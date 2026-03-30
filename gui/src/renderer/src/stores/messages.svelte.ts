@@ -31,6 +31,25 @@ export const messages = $state({
 /** Raw attachment rows from the daemon, keyed by message_id */
 const attachmentsByMessage = $state(new Map<number, AttachmentInfo[]>())
 
+/** Optimistic reactions we've sent but haven't been synced back yet.
+ *  Keyed by target message _id → array of reactions. */
+const pendingReactions = $state(new Map<number, TapbackReaction[]>())
+
+/** Add an optimistic reaction (shown immediately before sync). */
+export function addPendingReaction(targetMessageId: number, emoji: string): void {
+  const existing = pendingReactions.get(targetMessageId) ?? []
+  const senderName = t('export.me')
+  if (!existing.some((r) => r.emoji === emoji && r.senderName === senderName)) {
+    existing.push({ emoji, senderName })
+    pendingReactions.set(targetMessageId, existing)
+  }
+}
+
+/** Clear all pending reactions (called when thread reloads after sync). */
+export function clearPendingReactions(): void {
+  pendingReactions.clear()
+}
+
 function classifyMimeType(mime: string): AttachmentInfo['kind'] {
   if (mime.startsWith('image/')) return 'image'
   if (mime.startsWith('video/')) return 'video'
@@ -81,8 +100,10 @@ const _displayMessages: DisplayMessage[] = $derived.by(() => {
       tapbackIndices.add(i)
       if (tapback.type === 'add') {
         const existing = reactionsMap.get(targetId) ?? []
-        const contact = findContactByPhone(row.address)
-        const senderName = contact?.name ?? formatPhone(row.address)
+        const isSentReaction = row.type === 2
+        const senderName = isSentReaction
+          ? t('export.me')
+          : (findContactByPhone(row.address)?.name ?? formatPhone(row.address))
         // Deduplicate: don't add same emoji from same sender
         if (!existing.some((r) => r.emoji === tapback.emoji && r.senderName === senderName)) {
           existing.push({ emoji: tapback.emoji, senderName })
@@ -138,12 +159,25 @@ const _displayMessages: DisplayMessage[] = $derived.by(() => {
       showTimestamp,
       timestampLabel: showTimestamp ? formatTimestampBadge(row.date, dayChange) : '',
       attachments: atts,
-      reactions: reactionsMap.get(row._id) ?? [],
+      reactions: mergeReactions(reactionsMap.get(row._id) ?? [], pendingReactions.get(row._id) ?? []),
     })
   }
 
   return result
 })
+
+/** Merge synced reactions with optimistic pending reactions, deduplicating. */
+function mergeReactions(synced: TapbackReaction[], pending: TapbackReaction[]): TapbackReaction[] {
+  if (pending.length === 0) return synced
+  if (synced.length === 0) return pending
+  const result = [...synced]
+  for (const p of pending) {
+    if (!result.some((r) => r.emoji === p.emoji && r.senderName === p.senderName)) {
+      result.push(p)
+    }
+  }
+  return result
+}
 
 /** Find the index of the previous visible (non-tapback) row, or -1 */
 function findPrevVisibleIndex(currentIndex: number, skipSet: Set<number>): number {
@@ -167,6 +201,7 @@ export function resetMessages(): void {
   messages.rows.length = 0
   messages.loading = false
   attachmentsByMessage.clear()
+  pendingReactions.clear()
 }
 
 export function loadThread(threadId: number | null): void {
@@ -266,6 +301,8 @@ async function doLoadThread(threadId: number): Promise<void> {
       // This replaces the optimistic bubbles with their synced versions without
       // the UI gap that occurred when clearing at the notification entry point.
       clearSentMessages()
+      // Clear optimistic reactions — the synced tapback messages are now in rows
+      pendingReactions.clear()
 
       // Build attachment map
       attachmentsByMessage.clear()

@@ -42,6 +42,31 @@ const REMOVE_EMOJI: Record<string, string> = {
   'dislike': '\u{1F44E}',
 }
 
+/** Reverse map: emoji → display name for tooltips */
+const EMOJI_NAMES: Record<string, string> = {
+  '\u{1F44D}': 'Liked',
+  '\u2764\uFE0F': 'Loved',
+  '\u{1F602}': 'Laughed',
+  '\u203C\uFE0F': 'Emphasized',
+  '\u2753': 'Questioned',
+  '\u{1F44E}': 'Disliked',
+}
+
+/** Get the human-readable name for a tapback emoji */
+export function getEmojiName(emoji: string): string | null {
+  return EMOJI_NAMES[emoji] ?? null
+}
+
+/** Available tapback reactions for sending */
+export const TAPBACK_REACTIONS = [
+  { emoji: '\u{1F44D}', label: 'Like', verb: 'Liked' },
+  { emoji: '\u2764\uFE0F', label: 'Love', verb: 'Loved' },
+  { emoji: '\u{1F602}', label: 'Laugh', verb: 'Laughed at' },
+  { emoji: '\u203C\uFE0F', label: 'Emphasize', verb: 'Emphasized' },
+  { emoji: '\u2753', label: 'Question', verb: 'Questioned' },
+  { emoji: '\u{1F44E}', label: 'Dislike', verb: 'Disliked' },
+]
+
 export function parseTapback(body: string): ParsedTapback | null {
   let match = TAPBACK_ADD.exec(body)
   if (match) {
