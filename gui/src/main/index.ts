@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, protocol, net, dialog, shell, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, protocol, net, dialog, shell, nativeImage, powerMonitor } from 'electron'
 import { join, extname, basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs'
@@ -568,19 +568,37 @@ function setupIpcHandlers(): void {
     }
   })
 
-  ipcMain.on('shell:open-webdav-folder', (_event, port: number, folderPath: string) => {
-    if (typeof port !== 'number' || port < 1 || port > 65535) return
-    if (typeof folderPath !== 'string') return
+  ipcMain.handle('shell:open-webdav-folder', async (_event, port: number, folderPath: string) => {
+    if (typeof port !== 'number' || port < 1 || port > 65535) {
+      return { ok: false, error: 'Invalid port' }
+    }
+    if (typeof folderPath !== 'string') {
+      return { ok: false, error: 'Invalid folder path' }
+    }
     activeWebdavPort = port
     const { exec } = require('node:child_process') as typeof import('node:child_process')
-    // Convert forward slashes to backslashes for Windows path
     const subPath = folderPath.replace(/\//g, '\\')
+
     if (process.platform === 'win32') {
-      exec(`explorer.exe "\\\\localhost@${port}\\DavWWWRoot\\${subPath}"`)
+      const uncPath = `\\\\localhost@${port}\\DavWWWRoot\\${subPath}`
+      // Test WebDAV connectivity first with dir command (faster than net use)
+      return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        exec(`dir "${uncPath}"`, { timeout: 10000 }, (err) => {
+          if (err) {
+            log('main', 'WebDAV mount test failed', { uncPath, error: err.message })
+            resolve({ ok: false, error: 'Could not connect to phone filesystem. The phone may be disconnected or the WebDAV server is not ready.' })
+          } else {
+            exec(`explorer.exe "${uncPath}"`)
+            resolve({ ok: true })
+          }
+        })
+      })
     } else if (process.platform === 'darwin') {
       exec(`open "http://localhost:${port}/${folderPath}"`)
+      return { ok: true }
     } else {
       exec(`xdg-open "dav://localhost:${port}/${folderPath}"`)
+      return { ok: true }
     }
   })
 
@@ -1042,6 +1060,12 @@ app.whenReady().then(() => {
   createWindow()
   setupDaemonClient()
   setupAutoUpdater(mainWindow!)
+
+  // On OS resume from sleep/standby, immediately check if phone connection is stale
+  powerMonitor.on('resume', () => {
+    log('main', 'OS resumed from sleep, checking connections')
+    daemonClient?.checkConnections()
+  })
 
   // Handle tel: URL passed as command-line arg on fresh launch (Windows/Linux)
   const telArg = process.argv.find((a) => a.startsWith('tel:'))

@@ -111,11 +111,17 @@ export class EventHandler {
   destroy(): void {
     this.destroyed = true;
     this.flushAcks();
+    this.clearPendingAcks();
+    this.eventCallbacks = [];
+  }
+
+  /** Clear pending acks without sending. Called on disconnect. */
+  clearPendingAcks(): void {
+    this.pendingAckIds = [];
     if (this.ackTimer) {
       clearTimeout(this.ackTimer);
       this.ackTimer = undefined;
     }
-    this.eventCallbacks = [];
   }
 
   // --- Event type handlers ---

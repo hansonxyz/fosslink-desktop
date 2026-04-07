@@ -277,7 +277,7 @@ interface DaemonApi {
   flashTaskbar(flash: boolean): void
   openExternal(url: string): void
   openWebdav(port: number): void
-  openWebdavFolder(port: number, folderPath: string): void
+  openWebdavFolder(port: number, folderPath: string): Promise<{ ok: boolean; error?: string }>
   closeWebdav(port: number): void
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>

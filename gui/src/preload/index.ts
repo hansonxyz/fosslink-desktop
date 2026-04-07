@@ -169,8 +169,8 @@ const api = {
     ipcRenderer.send('shell:open-webdav', port)
   },
 
-  openWebdavFolder(port: number, folderPath: string): void {
-    ipcRenderer.send('shell:open-webdav-folder', port, folderPath)
+  openWebdavFolder(port: number, folderPath: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('shell:open-webdav-folder', port, folderPath)
   },
 
   closeWebdav(port: number): void {

@@ -114,9 +114,8 @@ export class WsDiscoveryService {
         port: this.udpPort,
       });
 
-      // Broadcast immediately, then on interval
-      this.broadcast();
-      this.broadcastTimer = setInterval(() => this.broadcast(), this.broadcastInterval);
+      // Start broadcasting (will be stopped when a phone connects)
+      this.startBroadcasting();
 
       // Start reachability check
       this.reachabilityTimer = setInterval(
@@ -152,6 +151,26 @@ export class WsDiscoveryService {
     }
 
     this.devices.clear();
+  }
+
+  /**
+   * Start periodic UDP broadcasting. Called on startup and when phone disconnects.
+   */
+  startBroadcasting(): void {
+    if (this.broadcastTimer || !this.running) return;
+    this.logger.info('network.discovery', 'Broadcasting started');
+    this.broadcast();
+    this.broadcastTimer = setInterval(() => this.broadcast(), this.broadcastInterval);
+  }
+
+  /**
+   * Stop periodic UDP broadcasting. Called when a phone connects.
+   */
+  stopBroadcasting(): void {
+    if (!this.broadcastTimer) return;
+    clearInterval(this.broadcastTimer);
+    this.broadcastTimer = undefined;
+    this.logger.info('network.discovery', 'Broadcasting stopped');
   }
 
   getDiscoveredDevices(): Map<string, DiscoveredDevice> {

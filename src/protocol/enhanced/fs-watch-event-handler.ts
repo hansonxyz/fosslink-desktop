@@ -93,11 +93,16 @@ export class FsWatchEventHandler {
   destroy(): void {
     this.destroyed = true;
     this.flushAcks();
+    this.clearPendingAcks();
+    this.eventCallbacks = [];
+  }
+
+  clearPendingAcks(): void {
+    this.pendingAckIds = [];
     if (this.ackTimer) {
       clearTimeout(this.ackTimer);
       this.ackTimer = undefined;
     }
-    this.eventCallbacks = [];
   }
 
   // --- Ack batching ---

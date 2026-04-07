@@ -93,11 +93,16 @@ export class GalleryEventHandler {
   destroy(): void {
     this.destroyed = true;
     this.flushAcks();
+    this.clearPendingAcks();
+    this.itemsAddedCallbacks = [];
+  }
+
+  clearPendingAcks(): void {
+    this.pendingAckIds = [];
     if (this.ackTimer) {
       clearTimeout(this.ackTimer);
       this.ackTimer = undefined;
     }
-    this.itemsAddedCallbacks = [];
   }
 
   // --- Ack batching ---

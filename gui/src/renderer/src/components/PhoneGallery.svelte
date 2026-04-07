@@ -56,14 +56,18 @@
   )
 
   // Auto-retry gallery scan every 5s when gallery is open, device appears connected,
-  // but the last scan failed (e.g. opened gallery before connection was fully ready)
+  // but the gallery has no items (scan failed, or data was wiped by resync)
   let retryTimer: ReturnType<typeof setInterval> | undefined
 
   $effect(() => {
-    if (gallery.scanState === 'error' && isDeviceConnected) {
+    const needsRetry = isDeviceConnected && (
+      gallery.scanState === 'error' ||
+      (gallery.scanState === 'ready' && gallery.items.length === 0)
+    )
+    if (needsRetry) {
       if (!retryTimer) {
         retryTimer = setInterval(() => {
-          if (gallery.scanState === 'error') {
+          if (gallery.scanState !== 'scanning') {
             void scanGallery()
           }
         }, 5000)
@@ -183,10 +187,12 @@
   )
 
   let explorerLoading = $state(false)
+  let explorerError = $state('')
 
   async function handleShowInExplorer(): Promise<void> {
     if (!explorerFolderPath) return
     explorerLoading = true
+    explorerError = ''
     try {
       // Ensure WebDAV is running
       let port = 0
@@ -204,9 +210,12 @@
         port = result.port
       }
 
-      window.api.openWebdavFolder(port, explorerFolderPath)
+      const result = await window.api.openWebdavFolder(port, explorerFolderPath)
+      if (!result.ok) {
+        explorerError = result.error ?? 'Failed to open folder'
+      }
     } catch (err) {
-      console.error('Show in Explorer failed:', err)
+      explorerError = err instanceof Error ? err.message : 'Failed to open folder'
     } finally {
       explorerLoading = false
     }
@@ -280,6 +289,9 @@
           </svg>
           {explorerLoading ? 'Opening...' : 'Show in Explorer'}
         </button>
+        {#if explorerError}
+          <span class="gallery__explorer-error" title={explorerError}>Mount failed</span>
+        {/if}
         <div class="gallery__separator"></div>
       {/if}
       <div class="gallery__tabs">
@@ -498,6 +510,12 @@
   .gallery__explorer-btn:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+
+  .gallery__explorer-error {
+    font-size: var(--font-size-xs);
+    color: var(--danger);
+    cursor: help;
   }
 
   .gallery__separator {

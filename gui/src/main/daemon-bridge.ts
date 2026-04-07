@@ -80,6 +80,15 @@ export class DaemonBridge {
     return this.state === 'connected'
   }
 
+  /** Ping all WebSocket connections immediately. Stale ones will be terminated. */
+  checkConnections(): void {
+    try {
+      this.daemon.getWsServer()?.pingAll()
+    } catch {
+      // Daemon may not be fully initialized
+    }
+  }
+
   getState(): ConnectionState {
     return this.state
   }

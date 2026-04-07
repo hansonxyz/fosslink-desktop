@@ -44,6 +44,9 @@ type MessageCallback = (msg: ProtocolMessage, connection: DeviceConnection) => v
 
 const IDENTITY_TIMEOUT = 10000;
 
+/** How often to ping connected clients (ms) */
+const PING_INTERVAL_MS = 30_000;
+
 export class WsServer {
   private httpsServer: https.Server | undefined;
   private wss: WSServer | undefined;
@@ -53,6 +56,8 @@ export class WsServer {
   private messageCallbacks: MessageCallback[] = [];
   private logger: Logger;
   private port = 0;
+  private pingTimer: ReturnType<typeof setInterval> | undefined;
+  private alive = new Set<WebSocket>();
 
   private deviceId: string | undefined;
   private deviceName = 'FossLink';
@@ -97,12 +102,35 @@ export class WsServer {
         resolve();
       });
     });
+
+    // Ping/pong heartbeat to detect stale connections (e.g. after OS standby/resume)
+    this.pingTimer = setInterval(() => {
+      for (const [, conn] of this.connections) {
+        if (!this.alive.has(conn.ws)) {
+          // No pong since last ping — connection is dead
+          this.logger.info('network.ws', 'Connection stale (no pong), terminating', {
+            deviceId: conn.deviceId,
+            deviceName: conn.deviceName,
+          });
+          conn.ws.terminate();
+          continue;
+        }
+        this.alive.delete(conn.ws);
+        conn.ws.ping();
+      }
+    }, PING_INTERVAL_MS);
   }
 
   /**
    * Stop the server and close all connections.
    */
   async stop(): Promise<void> {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = undefined;
+    }
+    this.alive.clear();
+
     for (const [, conn] of this.connections) {
       conn.ws.close();
     }
@@ -140,6 +168,28 @@ export class WsServer {
       deviceId: c.deviceId,
       deviceName: c.deviceName,
     }));
+  }
+
+  /**
+   * Immediately ping all connections and terminate any that don't respond.
+   * Call after OS resume to quickly detect stale connections.
+   */
+  pingAll(): void {
+    for (const [, conn] of this.connections) {
+      this.alive.delete(conn.ws);
+      conn.ws.ping();
+    }
+    // Check for pong responses after a short delay
+    setTimeout(() => {
+      for (const [, conn] of this.connections) {
+        if (!this.alive.has(conn.ws)) {
+          this.logger.info('network.ws', 'Connection stale after resume ping, terminating', {
+            deviceId: conn.deviceId,
+          });
+          conn.ws.terminate();
+        }
+      }
+    }, 5000);
   }
 
   onConnection(callback: ConnectionCallback): void {
@@ -246,6 +296,11 @@ export class WsServer {
       }
     });
 
+    // Mark alive on pong (heartbeat response)
+    ws.on('pong', () => {
+      this.alive.add(ws);
+    });
+
     ws.on('error', (err) => {
       this.logger.error('network.ws', 'WebSocket error', {
         error: err.message,
@@ -294,6 +349,7 @@ export class WsServer {
     };
 
     this.connections.set(identity.deviceId, conn);
+    this.alive.add(ws); // Mark alive for ping/pong heartbeat
 
     this.logger.info('network.ws', 'Connection established', {
       deviceId: identity.deviceId,
@@ -310,6 +366,7 @@ export class WsServer {
   private handleDisconnection(conn: DeviceConnection): void {
     if (!conn.connected) return;
     conn.connected = false;
+    this.alive.delete(conn.ws);
 
     // Only fire disconnect if we're still the current connection
     if (this.connections.get(conn.deviceId) === conn) {

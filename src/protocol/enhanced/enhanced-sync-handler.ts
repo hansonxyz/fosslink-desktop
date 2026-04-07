@@ -245,6 +245,11 @@ export class EnhancedSyncHandler {
 
     if (wasSyncing) {
       this.logger.info('protocol.enhanced-sync', 'Sync stopped');
+      // Transition out of SYNCING so the next startSync() can proceed
+      if (this.stateMachine.getState() === AppState.SYNCING &&
+          this.stateMachine.canTransition(AppState.CONNECTED)) {
+        this.stateMachine.transition(AppState.CONNECTED);
+      }
     }
   }
 
@@ -304,15 +309,14 @@ export class EnhancedSyncHandler {
     this.syncing = false;
     this.clearSafetyTimer();
 
-    // Record current time as sync timestamp (best effort)
-    this.db.setSyncState('lastSync', Date.now().toString());
+    // Do NOT update lastSync timestamp — this was a failure, not success.
+    // Do NOT fire syncComplete — sessionSynced should stay false so the
+    // next connection triggers a fresh sync attempt.
 
-    // Transition to READY if possible
-    if (this.stateMachine.canTransition(AppState.READY)) {
-      this.stateMachine.transition(AppState.READY);
+    // Transition to CONNECTED (not READY) so the UI shows the right state
+    if (this.stateMachine.canTransition(AppState.CONNECTED)) {
+      this.stateMachine.transition(AppState.CONNECTED);
     }
-
-    this.fireSyncComplete();
 
     // Recovery: if DB is still empty after timeout, force a full re-sync
     if (!this.recoveryAttempted && this.db.getConversationCount() === 0) {

@@ -159,6 +159,7 @@
     await window.api.invoke('sms.resync_all')
     selectConversation(null)
     loadThread(null)
+    onClose()
     await refreshConversations()
     await refreshContacts()
   }

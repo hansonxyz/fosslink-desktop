@@ -13,13 +13,37 @@ This is not two modes. It is one protocol where the low-level connection setup (
 
 ## Connection Flow
 
-1. UDP discovery on port 1716 (broadcast format shared with KDE Connect for compatibility)
-2. TCP connect to peer's advertised port
-3. Exchange `kdeconnect.identity` packets (plain text)
-4. TLS upgrade (roles inverted: TCP server = TLS client)
-5. Protocol v8: Exchange identity again over TLS
-6. Pairing via `kdeconnect.pair`
-7. Application packets (`fosslink.*`) flow freely
+1. UDP discovery on port 1716 (broadcast packets)
+2. Phone connects to desktop's WebSocket server (WSS on port 8716, self-signed TLS)
+3. Both sides exchange `kdeconnect.identity` packets (first message on the WebSocket)
+4. Pairing via `kdeconnect.pair` (verification code displayed on both sides)
+5. Application packets (`fosslink.*`) flow freely over the WebSocket
+
+## Discovery & Broadcasting
+
+Both sides broadcast UDP packets on port 1716 and listen for broadcasts from the other side. The broadcast packet is a flat JSON object with `type`, `deviceId`, `deviceName`, `deviceType`, `wsPort`, and `clientVersion` fields.
+
+**Desktop broadcasting rules:**
+- Broadcasts when **no phone is connected** via WebSocket (searching for phone, reconnecting after disconnect, first-time setup, post-unpair)
+- **Stops broadcasting** when a phone is connected (no need to advertise)
+- Broadcast interval: 5 seconds
+
+**Android broadcasting rules:**
+- Broadcasts **only when the app is in the foreground** (Activity visible), regardless of connection state (the phone supports multiple desktop connections)
+- **Never broadcasts in the background** — saves battery, avoids Doze issues
+- Always **listens passively** for desktop broadcasts, even in background (via foreground service)
+- Broadcast interval: 5 seconds
+
+**Reconnection after disconnect:**
+- Desktop broadcasts continuously when not connected
+- Phone's foreground service passively listens for these broadcasts
+- When the phone hears a paired desktop's broadcast, it auto-connects via WebSocket
+- If the phone's listener socket dies (Doze, WiFi change), a `ConnectivityManager.NetworkCallback` restarts it
+
+**Connection health (ping/pong):**
+- Desktop's WebSocket server pings all connected clients every 30 seconds
+- If no pong response by the next interval, the connection is terminated and disconnect callbacks fire
+- On OS resume from sleep, an immediate ping is sent to detect stale connections within 5 seconds
 
 ## Code Structure
 
@@ -101,12 +125,12 @@ fosslink.contacts.photo            Phone -> Desktop   { uid, mimeType } + payloa
 
 ## Android Side
 
-The Android companion app registers handlers for `fosslink.*` packet types via its plugin system (`XyzSyncPlugin`, `XyzEventPlugin`). Identity packets include `clientType` and `clientVersion` fields so each side knows the peer's capabilities.
+The Android companion app registers handlers for `fosslink.*` packet types in `ConnectionService`. Identity packets include `clientType`, `clientVersion`, and `minPeerVersion` fields so each side can check compatibility.
 
 ## Shared Infrastructure
 
-- **Network**: UDP discovery, TCP connections, TLS upgrade
+- **Network**: UDP discovery (port 1716), WebSocket connections (WSS on port 8716)
 - **Identity exchange and pairing**: `kdeconnect.identity`, `kdeconnect.pair`
-- **Database**: SQLite persistence (single schema)
-- **IPC**: Same notification contract to GUI
-- **State machine**: Tracks connection state and transitions
+- **Database**: SQLite persistence (single schema, disposable — phone is source of truth)
+- **IPC**: JSON-RPC notifications to GUI clients
+- **State machine**: INIT → DISCONNECTED → DISCOVERING → PAIRING → CONNECTED → SYNCING → READY

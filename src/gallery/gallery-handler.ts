@@ -97,6 +97,12 @@ export class GalleryHandler {
     this.cache.clearIndex();
   }
 
+  /** Clear the on-disk and in-memory cache (e.g. after resync wipes files). */
+  clearCache(): void {
+    this.cachedItems = null;
+    this.cache.clearIndex();
+  }
+
   /**
    * Called by the message router when the phone responds to a gallery request.
    * Matches the response to a pending Promise by requestId.

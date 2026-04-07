@@ -343,13 +343,8 @@ export class Daemon {
             port: WS_PORT,
           });
 
-          // Wire handlers that need a send function (same as reconnect path)
-          if (this.filesystemHandler) {
-            this.filesystemHandler.setSendFunction((msg) => conn.send(msg.type, msg.body));
-          }
-          if (this.galleryHandler) {
-            this.galleryHandler.setSendFunction((msg) => conn.send(msg.type, msg.body));
-          }
+          // Wire handlers to new connection
+          this.wireHandlers(conn);
 
           // Re-request contacts
           if (this.contactsHandler) {
@@ -366,7 +361,10 @@ export class Daemon {
           this.webdavDisconnectTimer = undefined;
         }
 
-        if (this.config!.sync.autoSync && !this.sessionSynced) {
+        // Stop broadcasting — we have a phone connected
+        this.discoveryService!.stopBroadcasting();
+
+        if (this.config!.sync.autoSync) {
           this.startSync();
         }
       } else {
@@ -456,15 +454,9 @@ export class Daemon {
           this.smsHandler.resumeDownloads();
         }
 
-        // Wire filesystem handler send function
-        if (this.filesystemHandler) {
-          this.filesystemHandler.setSendFunction((msg) => connection.send(msg.type, msg.body));
-        }
-
-        // Wire gallery handler send function
-        if (this.galleryHandler) {
-          this.galleryHandler.setSendFunction((msg) => connection.send(msg.type, msg.body));
-        }
+        // Clean up stale state from previous connection, wire to new one
+        this.cleanupConnection({ wipeData: false });
+        this.wireHandlers(connection);
 
         // Cancel pending WebDAV shutdown (phone reconnected in time)
         if (this.webdavDisconnectTimer) {
@@ -475,7 +467,8 @@ export class Daemon {
         // Request battery state
         this.requestBattery(connection);
 
-        if (this.config!.sync.autoSync && !this.sessionSynced) {
+        // Always sync on reconnect — incremental sync is lightweight (only new messages)
+        if (this.config!.sync.autoSync) {
           this.startSync();
         }
 
@@ -484,6 +477,9 @@ export class Daemon {
         if (this.galleryHandler && this.sessionSynced) {
           this.galleryHandler.preScan().catch(() => {});
         }
+
+        // Stop broadcasting — we have a phone connected
+        this.discoveryService!.stopBroadcasting();
       } else {
         // Auto-initiate pairing for unpaired devices
         this.logger!.info('core.daemon', 'Auto-initiating pairing for new device', {
@@ -522,30 +518,11 @@ export class Daemon {
       this.versionCheckInfo.delete(deviceId);
       this.clearVersionCheckTimer(deviceId);
 
-      // Abort any in-progress sync so it doesn't set sessionSynced=true
-      // or block the next sync with "already in progress"
-      if (this.enhancedSyncHandler) {
-        this.enhancedSyncHandler.stopSync();
-      }
+      this.cleanupConnection({ wipeData: true });
 
       const conn = this.wsServer!.getConnection(deviceId);
       if (conn) {
         conn.close();
-      }
-
-      // Wipe all cached files
-      const attachDir = getAttachmentsDir();
-      fs.rmSync(attachDir, { recursive: true, force: true });
-      const contactPhotosDir = getContactPhotosDir();
-      fs.rmSync(contactPhotosDir, { recursive: true, force: true });
-      const galleryCacheDir = getGalleryCacheDir();
-      fs.rmSync(galleryCacheDir, { recursive: true, force: true });
-      this.logger!.info('core.daemon', 'File caches wiped', { attachDir, contactPhotosDir, galleryCacheDir });
-
-      // Wipe database data
-      if (this.databaseService?.isOpen()) {
-        this.databaseService.wipeAllData();
-        this.logger!.info('core.daemon', 'Database data wiped on unpair');
       }
     });
 
@@ -554,15 +531,11 @@ export class Daemon {
     this.wsServer.onDisconnection((deviceId) => {
       this.logger!.info('core.daemon', 'Device disconnected', { deviceId });
 
-      // Clear filesystem handler send function
-      if (this.filesystemHandler) {
-        this.filesystemHandler.clearSendFunction();
-      }
+      // Resume broadcasting so the phone can rediscover us
+      this.discoveryService!.startBroadcasting();
 
-      // Clear gallery handler send function
-      if (this.galleryHandler) {
-        this.galleryHandler.clearSendFunction();
-      }
+      // Centralized cleanup (no data wipe on normal disconnect)
+      this.cleanupConnection({ wipeData: false });
 
       // Stop WebDAV server if phone doesn't reconnect within 10s
       if (this.webdavServer?.isRunning() && !this.webdavDisconnectTimer) {
@@ -1312,6 +1285,86 @@ export class Daemon {
         targetAccount,
       });
     });
+  }
+
+  // --- Connection lifecycle ---
+
+  /**
+   * Wire send functions for all handlers that communicate with the phone.
+   * Called on initial pair and on reconnect.
+   */
+  private wireHandlers(connection: DeviceConnection): void {
+    if (this.filesystemHandler) {
+      this.filesystemHandler.setSendFunction((msg) => connection.send(msg.type, msg.body));
+    }
+    if (this.galleryHandler) {
+      this.galleryHandler.setSendFunction((msg) => connection.send(msg.type, msg.body));
+    }
+  }
+
+  /**
+   * Clear send functions and pending acks for all handlers.
+   * Called on disconnect, unpair, and before re-wiring on reconnect.
+   */
+  private unwireHandlers(): void {
+    this.filesystemHandler?.clearSendFunction();
+    this.galleryHandler?.clearSendFunction();
+    this.eventHandler?.clearPendingAcks();
+    this.galleryEventHandler?.clearPendingAcks();
+    this.fsWatchEventHandler?.clearPendingAcks();
+  }
+
+  /**
+   * Single cleanup entry point for disconnect, unpair, and resync.
+   *
+   * @param wipeData - if true, delete all cached files and wipe the database
+   */
+  private cleanupConnection(options: { wipeData: boolean }): void {
+    // Stop any in-progress sync
+    this.enhancedSyncHandler?.stopSync();
+
+    // Clear all handler send functions and pending acks
+    this.unwireHandlers();
+
+    if (options.wipeData) {
+      // Wipe all cached files
+      const attachDir = getAttachmentsDir();
+      fs.rmSync(attachDir, { recursive: true, force: true });
+      const contactPhotosDir = getContactPhotosDir();
+      fs.rmSync(contactPhotosDir, { recursive: true, force: true });
+      const galleryCacheDir = getGalleryCacheDir();
+      fs.rmSync(galleryCacheDir, { recursive: true, force: true });
+      this.logger!.info('core.daemon', 'File caches wiped', { attachDir, contactPhotosDir, galleryCacheDir });
+
+      // Clear in-memory gallery cache (stale index would serve phantom entries)
+      this.galleryHandler?.clearCache();
+
+      // Drop and reprovision database
+      if (this.databaseService?.isOpen()) {
+        this.databaseService.wipeAllData();
+        this.logger!.info('core.daemon', 'Database wiped');
+      }
+    }
+  }
+
+  /**
+   * Full resync: wipe all data and restart sync from scratch.
+   * Called from the IPC resync handler.
+   */
+  resync(): void {
+    this.cleanupConnection({ wipeData: true });
+
+    // Re-wire handlers to the existing connection (cleanupConnection cleared them)
+    const deviceIds = this.wsServer!.getConnectedDeviceIds();
+    if (deviceIds.length > 0) {
+      const conn = this.wsServer!.getConnection(deviceIds[0]!);
+      if (conn) {
+        this.wireHandlers(conn);
+      }
+    }
+
+    this.startSync();
+    this.logger!.info('core.daemon', 'Full resync started');
   }
 
   // --- Sync ---
