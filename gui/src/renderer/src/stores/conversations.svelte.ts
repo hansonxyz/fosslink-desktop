@@ -174,6 +174,7 @@ async function doRefreshConversations(): Promise<void> {
 
 /** Select a conversation by thread ID. */
 export function selectConversation(threadId: number | null): void {
+  const prevThreadId = conversations.selectedThreadId
   conversations.selectedThreadId = threadId
   // Clicking a real conversation exits compose mode
   if (threadId !== null && threadId !== -1) {
@@ -181,6 +182,11 @@ export function selectConversation(threadId: number | null): void {
     if (document.hasFocus()) {
       markThreadRead(threadId)
     }
+    // Notify orchestrator that a thread was opened (triggers full sync if needed)
+    void window.api.invoke('sync.thread_opened', { threadId }).catch(() => {})
+  } else if (prevThreadId !== null) {
+    // Notify orchestrator that the thread was closed
+    void window.api.invoke('sync.thread_closed', {}).catch(() => {})
   }
 }
 
@@ -265,7 +271,6 @@ export function initConversationsStore(): () => void {
     if (
       method === 'sms.conversations_updated' ||
       method === 'sms.messages' ||
-      method === 'sync.completed' ||
       method === 'contacts.updated'
     ) {
       void refreshConversations()

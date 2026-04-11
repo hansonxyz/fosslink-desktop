@@ -797,13 +797,33 @@ app.on('open-url', (event, url) => {
   handleTelUrl(url)
 })
 
-// Single instance lock — if another instance is already running, focus it and quit
-const gotTheLock = app.requestSingleInstanceLock()
+// Single instance lock — if another instance is running, focus it.
+// If the other instance is shutting down, retry until the lock is available.
+let gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  log('main', 'Another instance is already running, quitting')
-  app.quit()
+  log('main', 'Another instance detected, waiting for it to respond or exit...')
+  const MAX_RETRIES = 10
+  let retries = 0
+  const retryInterval = setInterval(() => {
+    retries++
+    gotTheLock = app.requestSingleInstanceLock()
+    if (gotTheLock) {
+      log('main', 'Previous instance exited, starting normally')
+      clearInterval(retryInterval)
+      setupSecondInstanceHandler()
+      void app.whenReady().then(onAppReady)
+    } else if (retries >= MAX_RETRIES) {
+      log('main', 'Other instance is still running, quitting')
+      clearInterval(retryInterval)
+      app.quit()
+    }
+  }, 1000)
 } else {
+  setupSecondInstanceHandler()
+}
+
+function setupSecondInstanceHandler(): void {
   app.on('second-instance', (_event, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
@@ -820,7 +840,7 @@ if (!gotTheLock) {
   })
 }
 
-app.whenReady().then(() => {
+function onAppReady(): void {
   log('main', 'App ready')
 
   // __DEV_BUILD__ is a compile-time constant set by electron-vite define.
@@ -1081,7 +1101,12 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
-})
+}
+
+// Normal path: got the lock on first try, start when ready
+if (gotTheLock) {
+  void app.whenReady().then(onAppReady)
+}
 
 app.on('window-all-closed', () => {
   log('main', 'All windows closed, shutting down')

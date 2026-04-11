@@ -22,6 +22,9 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
-    plugins: [svelte()]
+    plugins: [svelte()],
+    define: {
+      __DEV_BUILD__: JSON.stringify(process.env.DEV_BUILD === '1')
+    }
   }
 })

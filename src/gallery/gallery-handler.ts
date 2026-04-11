@@ -56,6 +56,8 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  /** Accumulated items across batched gallery scan responses. */
+  accumulatedItems?: Array<Record<string, unknown>>;
 }
 
 interface QueuedThumbnail {
@@ -125,11 +127,10 @@ export class GalleryHandler {
       return;
     }
 
-    this.pending.delete(requestId);
-    clearTimeout(entry.timer);
-
     const error = msg.body['error'] as string | undefined;
     if (error) {
+      this.pending.delete(requestId);
+      clearTimeout(entry.timer);
       this.logger.debug('protocol.gallery', 'Gallery request returned error', {
         requestId,
         error,
@@ -138,8 +139,47 @@ export class GalleryHandler {
       return;
     }
 
-    entry.resolve(msg.body);
+    // Handle batched gallery scan responses
+    const batch = msg.body['batch'] as number | undefined;
+    const totalBatches = msg.body['totalBatches'] as number | undefined;
+
+    if (batch !== undefined && totalBatches !== undefined) {
+      const batchItems = msg.body['items'] as Array<Record<string, unknown>> ?? [];
+
+      // Accumulate items across batches
+      if (!entry.accumulatedItems) {
+        entry.accumulatedItems = [];
+      }
+      entry.accumulatedItems.push(...batchItems);
+
+      // Emit batch callback for progressive rendering
+      if (this.onScanBatch) {
+        this.onScanBatch(batchItems, batch, totalBatches);
+      }
+
+      // Reset timeout on each batch (the scan is still in progress)
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        this.pending.delete(requestId);
+        entry.reject(new Error('Gallery scan timed out'));
+      }, SCAN_TIMEOUT_MS);
+
+      if (batch >= totalBatches) {
+        // Last batch — resolve with ALL accumulated items
+        this.pending.delete(requestId);
+        clearTimeout(entry.timer);
+        entry.resolve({ items: entry.accumulatedItems });
+      }
+    } else {
+      // Non-batched response (e.g. thumbnail)
+      this.pending.delete(requestId);
+      clearTimeout(entry.timer);
+      entry.resolve(msg.body);
+    }
   }
+
+  /** Callback for progressive gallery scan batches. Set by the IPC layer. */
+  onScanBatch: ((items: Array<Record<string, unknown>>, batch: number, totalBatches: number) => void) | null = null;
 
   /**
    * Pre-scan gallery on connection so file list is available instantly.
@@ -191,10 +231,29 @@ export class GalleryHandler {
   }
 
   /**
+   * Fetch gallery items directly from the phone (bypasses cache).
+   * Used by the IPC gallery.scan handler to get batched responses.
+   */
+  /** Gallery scan batch size — configurable for testing. */
+  scanBatchSize = 50;
+
+  /** Current scan scope — set before calling fetchScanDirect. */
+  scanScope = 'all';
+
+  async fetchScanDirect(): Promise<GalleryItem[]> {
+    const items = await this.fetchScan();
+    this.cachedItems = items;
+    return items;
+  }
+
+  /**
    * Fetch gallery items from the phone (always goes to network).
    */
   private async fetchScan(): Promise<GalleryItem[]> {
-    const body = await this.sendRequest(MSG_GALLERY_SCAN, {}, SCAN_TIMEOUT_MS) as Record<string, unknown>;
+    const body = await this.sendRequest(MSG_GALLERY_SCAN, {
+      batchSize: this.scanBatchSize,
+      scope: this.scanScope,
+    }, SCAN_TIMEOUT_MS) as Record<string, unknown>;
     const items = body['items'] as Array<Record<string, unknown>>;
 
     if (!Array.isArray(items)) {

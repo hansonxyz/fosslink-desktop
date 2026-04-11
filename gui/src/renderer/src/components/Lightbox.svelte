@@ -217,6 +217,10 @@
     resetZoom()
   })
 
+  const isThumbnail = $derived(
+    lightbox.current?.type === 'image' && lightbox.current.src.includes('gallery-thumb')
+  )
+
   function handleContextMenu(e: MouseEvent): void {
     if (!lightbox.current) return
     e.preventDefault()
@@ -280,16 +284,24 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="lightbox__content" onclick={(e) => e.stopPropagation()}>
       {#if lightbox.current.type === 'image'}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-        <img
-          class="lightbox__media"
-          class:lightbox__media--zoomed={isZoomed}
-          src={lightbox.current.src}
-          alt="Full size"
-          onclick={handleImageClick}
-          oncontextmenu={handleContextMenu}
-          style:transform="translate({zoomX}px, {zoomY}px) scale({isZoomed ? ZOOM_SCALE : 1})"
-        />
+        <div class="lightbox__image-wrapper">
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+          <img
+            class="lightbox__media"
+            class:lightbox__media--zoomed={isZoomed}
+            class:lightbox__media--loading={isThumbnail}
+            src={lightbox.current.src}
+            alt="Full size"
+            onclick={handleImageClick}
+            oncontextmenu={handleContextMenu}
+            style:transform="translate({zoomX}px, {zoomY}px) scale({isZoomed ? ZOOM_SCALE : 1})"
+          />
+          {#if isThumbnail}
+            <div class="lightbox__image-loading">
+              <div class="lightbox__loading-spinner"></div>
+            </div>
+          {/if}
+        </div>
       {:else if lightbox.current.src}
         <!-- svelte-ignore a11y_media_has_caption -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -385,6 +397,26 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .lightbox__image-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lightbox__media--loading {
+    filter: brightness(0.5);
+  }
+
+  .lightbox__image-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
   }
 
   .lightbox__media {

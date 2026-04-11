@@ -533,8 +533,6 @@ export function initMessagesStore(): () => void {
         }
         refreshCurrentThread(data?.threadId)
       }
-    } else if (method === 'sync.completed') {
-      refreshCurrentThread()
     } else if (method === 'device.connected') {
       // Phone just connected — retry any attachment downloads that were waiting
       retryPendingDownloads()

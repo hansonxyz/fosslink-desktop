@@ -1,5 +1,7 @@
 /// <reference types="svelte" />
 
+declare const __DEV_BUILD__: boolean
+
 // Socket-level connection state (from DaemonClient in main process)
 type ConnectionState = 'disconnected' | 'connecting' | 'connected'
 

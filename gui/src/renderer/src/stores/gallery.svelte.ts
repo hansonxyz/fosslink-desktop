@@ -51,7 +51,13 @@ export const gallery = {
   get scanState(): ScanState { return scanState },
   get scanError(): string { return scanError },
   get viewMode(): ViewMode { return viewMode },
-  set viewMode(v: ViewMode) { viewMode = v; selectedFolder = null },
+  set viewMode(v: ViewMode) {
+    const changed = viewMode !== v
+    viewMode = v
+    selectedFolder = null
+    // Trigger a new scoped scan when switching views
+    if (changed) void scanGallery()
+  },
   get sizeMode(): SizeMode { return sizeMode },
   set sizeMode(v: SizeMode) { sizeMode = v },
   get hideHidden(): boolean { return hideHidden },
@@ -105,22 +111,83 @@ export function getItemsByFolder(): Array<{ folder: string; items: GalleryItem[]
     .sort((a, b) => a.folder.localeCompare(b.folder))
 }
 
-/** Scan the phone gallery */
+/** Track all paths from the current scan for delete detection */
+let scanAllPaths: Set<string> | null = null
+
+/** Map view mode to scan scope */
+function viewModeToScope(mode: ViewMode): string {
+  switch (mode) {
+    case 'dcim': return 'dcim'
+    case 'screenshots': return 'screenshots'
+    default: return 'all'
+  }
+}
+
+/** Scan the phone gallery — items arrive progressively via batches */
 export async function scanGallery(): Promise<void> {
+  const scope = viewModeToScope(viewMode)
   scanState = 'scanning'
   scanError = ''
-  // Clear stale thumbnail/download states (cache may have been wiped on unpair)
-  for (const k of Object.keys(thumbnailStates)) delete thumbnailStates[k]
-  for (const k of Object.keys(downloadStates)) delete downloadStates[k]
-  thumbQueue.length = 0
-  activeThumbRequests = 0
+  // Clear stale states on fresh scan (unpair/resync)
+  if (items.length === 0) {
+    for (const k of Object.keys(thumbnailStates)) delete thumbnailStates[k]
+    for (const k of Object.keys(downloadStates)) delete downloadStates[k]
+    thumbQueue.length = 0
+    activeThumbRequests = 0
+  }
+  scanAllPaths = new Set()
+
   try {
-    const result = (await window.api.invoke('gallery.scan')) as { items: GalleryItem[] }
-    items = result.items ?? []
+    await window.api.invoke('gallery.scan', { scope })
+    // Batches were processed via handleGalleryScanBatch during the await.
+    // Now remove any items that weren't in the scan results (deleted on phone).
+    if (scanAllPaths && scanAllPaths.size > 0) {
+      const before = items.length
+      items = items.filter(i => scanAllPaths!.has(i.path))
+      const removed = before - items.length
+      if (removed > 0) {
+        // Clean up thumbnail states for removed items
+        for (const k of Object.keys(thumbnailStates)) {
+          if (!scanAllPaths!.has(k)) delete thumbnailStates[k]
+        }
+      }
+    }
+    scanAllPaths = null
     scanState = 'ready'
   } catch (err) {
+    scanAllPaths = null
     scanError = err instanceof Error ? err.message : String(err)
     scanState = 'error'
+  }
+}
+
+/** Handle a streaming batch of gallery items from the phone */
+export function handleGalleryScanBatch(batchItems: GalleryItem[]): void {
+  // Track all paths for delete detection at end of scan
+  if (scanAllPaths) {
+    for (const item of batchItems) {
+      scanAllPaths.add(item.path)
+    }
+  }
+
+  if (items.length === 0) {
+    // First batch — just set the items
+    items = batchItems
+  } else {
+    // Merge: add new items in correct position (items are sorted newest-first)
+    const existingPaths = new Set(items.map(i => i.path))
+    const newItems = batchItems.filter(i => !existingPaths.has(i.path))
+    if (newItems.length > 0) {
+      // Insert new items maintaining sort order (newest first by mtime)
+      const merged = [...items, ...newItems]
+      merged.sort((a, b) => b.mtime - a.mtime)
+      items = merged
+    }
+  }
+
+  // Mark as ready as soon as first batch arrives
+  if (scanState === 'scanning') {
+    scanState = 'ready'
   }
 }
 

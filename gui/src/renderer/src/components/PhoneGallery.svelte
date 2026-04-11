@@ -16,6 +16,7 @@
     subscribeFsWatchEvents,
     watchFolder,
     unwatchFolder,
+    handleGalleryScanBatch,
     type GalleryItem,
     type ViewMode,
   } from '../stores/gallery.svelte'
@@ -102,6 +103,17 @@
     const unsubscribeEvents = subscribeGalleryEvents()
     const unsubscribeWatchEvents = subscribeFsWatchEvents()
 
+    // Listen for progressive gallery scan batches
+    const handleBatch = (method: string, params: unknown): void => {
+      if (method === 'gallery.scan.batch') {
+        const data = params as { items: GalleryItem[] }
+        if (data.items?.length > 0) {
+          handleGalleryScanBatch(data.items)
+        }
+      }
+    }
+    window.api.onNotification(handleBatch)
+
     observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -118,6 +130,7 @@
       observer?.disconnect()
       unsubscribeEvents()
       unsubscribeWatchEvents()
+      window.api.offNotification(handleBatch)
       unwatchFolder()
       closeGallery()
       if (retryTimer) {
@@ -345,7 +358,7 @@
   </div>
 
   <div class="gallery__body" bind:this={galleryBodyEl}>
-    {#if gallery.scanState === 'idle' || gallery.scanState === 'scanning'}
+    {#if gallery.scanState === 'scanning' && (gallery.viewMode === 'folders' || gallery.viewMode === 'all' || filteredItems.length === 0)}
       <div class="gallery__status">
         <div class="gallery__spinner"></div>
         <p>{t('gallery.scanning')}</p>

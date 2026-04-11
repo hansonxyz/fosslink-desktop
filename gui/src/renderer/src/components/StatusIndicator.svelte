@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { effectiveState, syncProgress, connection } from '../stores/connection.svelte'
+  import { effectiveState, syncProgress, connection, orchestratorSyncing } from '../stores/connection.svelte'
   import { devices } from '../stores/devices.svelte'
   import { battery } from '../stores/battery.svelte'
   import { t } from '../stores/i18n.svelte'
@@ -74,10 +74,15 @@
     }
   })
 
+  // Orchestrator syncing flag overrides the display state when connected
+  const showSyncing = $derived(
+    orchestratorSyncing.active && GOOD_STATES.has(effectiveState.current)
+  )
+
   const config = $derived({
-    color: stateColors[displayState],
-    label: displayState === 'syncing' && syncProgress.percent !== null
-      ? `${t(stateKeys[displayState])} ${syncProgress.percent}%`
+    color: showSyncing ? 'yellow' as const : stateColors[displayState],
+    label: showSyncing
+      ? (syncProgress.percent !== null ? `${t('status.syncing')} ${syncProgress.percent}%` : t('status.syncing'))
       : t(stateKeys[displayState]),
   })
 

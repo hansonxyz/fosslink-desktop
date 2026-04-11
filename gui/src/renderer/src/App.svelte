@@ -35,6 +35,7 @@
   import VersionPopup from './components/VersionPopup.svelte'
   import ContactMigration from './components/ContactMigration.svelte'
   import PhoneGallery from './components/PhoneGallery.svelte'
+  import SyncConsole from './components/SyncConsole.svelte'
   import PairingPage from './pages/PairingPage.svelte'
   import { resetAppData } from './stores/reset'
 
@@ -119,36 +120,8 @@
     }
   })
 
-  // Auto-sync on reconnect after a meaningful disconnect (>30s).
-  // Brief disconnect/reconnect cycles (~25s) happen normally and don't need a sync.
-  // Only when the phone has been gone long enough for the UI to show "disconnected"
-  // do we re-sync to pick up messages received while offline.
-  const RECONNECT_SYNC_THRESHOLD = 30_000
-  let needsSyncOnReconnect = $state(false)
-  let disconnectTimer: ReturnType<typeof setTimeout> | undefined
-
-  $effect(() => {
-    const state = effectiveState.current
-    if (CONVERSATION_STATES.has(state)) {
-      if (disconnectTimer !== undefined) {
-        clearTimeout(disconnectTimer)
-        disconnectTimer = undefined
-      }
-      if (needsSyncOnReconnect) {
-        needsSyncOnReconnect = false
-        triggerSync()
-      }
-    } else if (hasBeenConnected && disconnectTimer === undefined) {
-      disconnectTimer = setTimeout(() => {
-        disconnectTimer = undefined
-        needsSyncOnReconnect = true
-      }, RECONNECT_SYNC_THRESHOLD)
-    }
-  })
-
-  function triggerSync(): void {
-    void window.api.invoke('sms.request_sync').catch(() => {})
-  }
+  // v1.3: Sync is driven by the daemon's SyncOrchestrator on every connect.
+  // No client-side sync triggering needed.
 
   const showConversations = $derived(
     CONVERSATION_STATES.has(effectiveState.current) || hasBeenConnected || devices.pairedIds.length > 0,
@@ -159,6 +132,7 @@
   let showFindPhone = $state(false)
   let showContactMigration = $state(false)
   let showGallery = $state(false)
+  let showSyncConsole = $state(false)
   let showAbout = $state(false)
   let showShareUrl = $state(false)
   let telDialNumber = $state<string | null>(null)
@@ -194,6 +168,7 @@
     showFindPhone = false
     showContactMigration = false
     showGallery = false
+    showSyncConsole = false
   }
 
   /** Open a non-SMS panel: close other extras, deselect any thread so
@@ -297,7 +272,6 @@
       cleanupMessages()
       cleanupSendQueue()
       cleanupBattery()
-      clearTimeout(disconnectTimer)
     }
   })
 
@@ -311,8 +285,7 @@
       if (lightbox.current) { closeLightbox(); return }
       if (showShareUrl) { showShareUrl = false; return }
       if (showAbout) { showAbout = false; return }
-      if (showGallery) { showGallery = false; return }
-      if (showContactMigration) { showContactMigration = false; return }
+      // Only settings and find-phone close on Escape
       if (showSettings) { showSettings = false; return }
       if (showFindPhone) { showFindPhone = false; return }
       if (conversations.composingNew) { exitCompose(); return }
@@ -370,6 +343,7 @@
       <div class="sidebar__title-row">
         <button class="sidebar__title" onclick={() => (showAbout = true)} title={t('app.about')}>{t('app.title')}</button>
         <div class="sidebar__actions">
+          {#if isEnhancedMode}
           <button
             class="sidebar__icon-btn"
             class:sidebar__icon-btn--active={conversations.composingNew}
@@ -396,7 +370,6 @@
               />
             </svg>
           </button>
-          {#if isEnhancedMode}
             <button
               class="sidebar__icon-btn"
               class:sidebar__icon-btn--active={showGallery}
@@ -456,12 +429,14 @@
       <div class="main-panel__drop-overlay">Drop files to attach</div>
     {/if}
     <UpdateBanner />
-    {#if showGallery}
+    {#if showSyncConsole}
+      <SyncConsole onClose={() => (showSyncConsole = false)} />
+    {:else if showGallery}
       <PhoneGallery onClose={() => (showGallery = false)} />
     {:else if showContactMigration}
       <ContactMigration onClose={() => (showContactMigration = false)} />
     {:else if showSettings}
-      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onContactMigration={() => { showSettings = false; showContactMigration = true }} />
+      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onContactMigration={() => { showSettings = false; showContactMigration = true }} onSyncConsole={() => { showSettings = false; showSyncConsole = true }} />
     {:else if showFindPhone}
       <FindMyPhone onClose={() => (showFindPhone = false)} />
     {:else if showPairing}

@@ -52,8 +52,6 @@ import {
   MSG_BATTERY,
   MSG_BATTERY_REQUEST,
   MSG_NOTIFICATION,
-  MSG_SYNC_BATCH,
-  MSG_SYNC_COMPLETE,
   MSG_EVENT,
   MSG_URL_SHARE,
   MSG_CONTACTS_UIDS_RESPONSE,
@@ -85,13 +83,18 @@ import { createNotification } from '../ipc/json-rpc.js';
 import { SmsHandler } from '../protocol/standard/sms-handler.js';
 import { ContactsHandler } from '../protocol/standard/contacts-handler.js';
 import { NotificationHandler } from '../protocol/standard/notification-handler.js';
-import { EnhancedSyncHandler } from '../protocol/enhanced/enhanced-sync-handler.js';
 import { EventHandler } from '../protocol/enhanced/event-handler.js';
 import { GalleryEventHandler } from '../protocol/enhanced/gallery-event-handler.js';
 import { FsWatchEventHandler } from '../protocol/enhanced/fs-watch-event-handler.js';
 import { FilesystemHandler } from '../protocol/enhanced/filesystem-handler.js';
 import { WebdavServer } from '../webdav/webdav-server.js';
 import { GalleryHandler } from '../gallery/gallery-handler.js';
+import { QueryClient } from '../sync/query-client.js';
+import { SyncOrchestrator } from '../sync/sync-orchestrator.js';
+import { debugConsole } from '../sync/debug-console.js';
+import { EventListener } from '../sync/event-listener.js';
+import { MSG_QUERY_RESULT } from '../sync/query-types.js';
+import type { QueryResultPage } from '../sync/query-types.js';
 import type { GalleryItem } from '../gallery/gallery-handler.js';
 
 export interface DaemonOptions {
@@ -154,12 +157,15 @@ export class Daemon {
   private smsHandler: SmsHandler | undefined;
   private contactsHandler: ContactsHandler | undefined;
   private notificationHandler: NotificationHandler | undefined;
-  private enhancedSyncHandler: EnhancedSyncHandler | undefined;
   private eventHandler: EventHandler | undefined;
   private filesystemHandler: FilesystemHandler | undefined;
   private galleryHandler: GalleryHandler | undefined;
   private galleryEventHandler: GalleryEventHandler | undefined;
   private fsWatchEventHandler: FsWatchEventHandler | undefined;
+  private queryClient: QueryClient | undefined;
+  private eventListener: EventListener | undefined;
+  private syncOrchestrator: SyncOrchestrator | undefined;
+  private notifyFn: ((method: string, params: Record<string, unknown>) => void) | undefined;
   private webdavServer: WebdavServer | undefined;
   private webdavDisconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -184,9 +190,6 @@ export class Daemon {
   // Version check timers and state for incompatible peers
   private versionCheckTimers = new Map<string, ReturnType<typeof setInterval>>();
   private versionCheckInfo = new Map<string, { peerVersion: string; peerTooOld: boolean; selfTooOld: boolean }>();
-
-  // Track whether initial sync has been done this session
-  private sessionSynced = false;
 
   async init(options?: DaemonOptions): Promise<void> {
     // Resolve data directory
@@ -346,6 +349,9 @@ export class Daemon {
           // Wire handlers to new connection
           this.wireHandlers(conn);
 
+          // Subscribe to real-time events
+          conn.send('fosslink.subscribe', {});
+
           // Re-request contacts
           if (this.contactsHandler) {
             this.contactsHandler.requestAllUidsTimestamps();
@@ -364,8 +370,9 @@ export class Daemon {
         // Stop broadcasting — we have a phone connected
         this.discoveryService!.stopBroadcasting();
 
-        if (this.config!.sync.autoSync) {
-          this.startSync();
+        // v1.3: Start sync orchestrator
+        if (this.syncOrchestrator) {
+          this.syncOrchestrator.onConnected();
         }
       } else {
         this.logger!.info('core.daemon', 'Pairing failed', { deviceId });
@@ -458,6 +465,10 @@ export class Daemon {
         this.cleanupConnection({ wipeData: false });
         this.wireHandlers(connection);
 
+        // Subscribe to real-time events from phone
+        connection.send('fosslink.subscribe', {});
+        debugConsole.narrative('Subscribed to real-time events');
+
         // Cancel pending WebDAV shutdown (phone reconnected in time)
         if (this.webdavDisconnectTimer) {
           clearTimeout(this.webdavDisconnectTimer);
@@ -467,15 +478,9 @@ export class Daemon {
         // Request battery state
         this.requestBattery(connection);
 
-        // Always sync on reconnect — incremental sync is lightweight (only new messages)
-        if (this.config!.sync.autoSync) {
-          this.startSync();
-        }
-
-        // Pre-scan gallery file list after sync completes (phone is too busy during sync)
-        // For reconnections where sync is skipped, pre-scan immediately
-        if (this.galleryHandler && this.sessionSynced) {
-          this.galleryHandler.preScan().catch(() => {});
+        // v1.3: Start sync orchestrator
+        if (this.syncOrchestrator) {
+          this.syncOrchestrator.onConnected();
         }
 
         // Stop broadcasting — we have a phone connected
@@ -514,7 +519,6 @@ export class Daemon {
 
     this.pairingHandler.onUnpaired((deviceId) => {
       this.logger!.info('core.daemon', 'Device unpaired', { deviceId });
-      this.sessionSynced = false;
       this.versionCheckInfo.delete(deviceId);
       this.clearVersionCheckTimer(deviceId);
 
@@ -642,15 +646,6 @@ export class Daemon {
       db: this.databaseService,
     });
 
-    this.enhancedSyncHandler = new EnhancedSyncHandler({
-      smsHandler: this.smsHandler,
-      contactsHandler: this.contactsHandler,
-      db: this.databaseService,
-      stateMachine: this.stateMachine,
-      config: this.config,
-      getConnection,
-    });
-
     this.eventHandler = new EventHandler({
       smsHandler: this.smsHandler,
       db: this.databaseService,
@@ -667,21 +662,12 @@ export class Daemon {
 
     this.filesystemHandler = new FilesystemHandler();
     this.galleryHandler = new GalleryHandler();
+    this.queryClient = new QueryClient();
+    // EventListener is created lazily once notifyFn is set (by wireNotifications)
 
     // Merge real-time gallery events into the pre-scanned cache
     this.galleryEventHandler.onItemsAdded((items) => {
       this.galleryHandler!.mergeItems(items);
-    });
-
-    // Wire sync completion to session tracking + gallery pre-scan
-    this.enhancedSyncHandler.onSyncComplete(() => {
-      this.sessionSynced = true;
-      this.logger!.info('core.daemon', 'Session sync completed');
-
-      // Pre-scan gallery now that the phone is free
-      if (this.galleryHandler) {
-        this.galleryHandler.preScan().catch(() => {});
-      }
     });
 
     // --- Register protocol handlers on router ---
@@ -715,17 +701,13 @@ export class Daemon {
       }
     });
 
-    // Enhanced sync
-    this.messageRouter.registerHandler(MSG_SYNC_BATCH, (msg, conn) => {
-      this.enhancedSyncHandler!.handleSyncBatch(msg, conn);
-    });
-    this.messageRouter.registerHandler(MSG_SYNC_COMPLETE, (msg) => {
-      this.enhancedSyncHandler!.handleSyncComplete(msg);
-    });
-
-    // Real-time events
+    // Real-time events — route to both old handler and new EventListener
     this.messageRouter.registerHandler(MSG_EVENT, (msg, conn) => {
       this.eventHandler!.handleEvent(msg, conn);
+      // v1.3 EventListener — processes events into DB directly
+      if (this.eventListener) {
+        this.eventListener.handleEvent(msg);
+      }
     });
 
     // Contact sync responses
@@ -769,6 +751,11 @@ export class Daemon {
     // Gallery real-time media events from phone
     this.messageRouter.registerHandler(MSG_GALLERY_MEDIA_EVENT, (msg, conn) => {
       this.galleryEventHandler!.handleEvent(msg, conn);
+    });
+
+    // Query result pages from phone (v1.3 query system)
+    this.messageRouter.registerHandler(MSG_QUERY_RESULT, (msg) => {
+      this.queryClient!.handleResultPage(msg.body as unknown as QueryResultPage);
     });
 
     // Filesystem watch responses from phone
@@ -928,9 +915,6 @@ export class Daemon {
     if (this.eventHandler) {
       this.eventHandler.destroy();
     }
-    if (this.enhancedSyncHandler) {
-      this.enhancedSyncHandler.destroy();
-    }
 
     // Clear reconnect timers
     for (const [, timer] of this.reconnectTimers) {
@@ -1062,13 +1046,6 @@ export class Daemon {
     return this.notificationHandler;
   }
 
-  getEnhancedSyncHandler(): EnhancedSyncHandler {
-    if (!this.enhancedSyncHandler) {
-      throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'Daemon not initialized');
-    }
-    return this.enhancedSyncHandler;
-  }
-
   getEventHandler(): EventHandler {
     if (!this.eventHandler) {
       throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'Daemon not initialized');
@@ -1136,6 +1113,38 @@ export class Daemon {
       throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'Daemon not initialized');
     }
     return this.galleryHandler;
+  }
+
+  getQueryClient(): QueryClient {
+    if (!this.queryClient) {
+      throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'Daemon not initialized');
+    }
+    return this.queryClient;
+  }
+
+  getEventListener(): EventListener {
+    if (!this.eventListener) {
+      throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'EventListener not initialized');
+    }
+    return this.eventListener;
+  }
+
+  /** Set the IPC notification callback and create the EventListener + SyncOrchestrator. */
+  setNotifyFunction(fn: (method: string, params: Record<string, unknown>) => void): void {
+    this.notifyFn = fn;
+    if (this.databaseService && this.queryClient) {
+      this.eventListener = new EventListener(this.databaseService, fn);
+      this.syncOrchestrator = new SyncOrchestrator(
+        this.queryClient,
+        this.eventListener,
+        this.databaseService,
+        fn,
+      );
+    }
+  }
+
+  getSyncOrchestrator(): SyncOrchestrator | undefined {
+    return this.syncOrchestrator;
   }
 
   async requestGalleryScan(): Promise<GalleryItem[]> {
@@ -1300,6 +1309,9 @@ export class Daemon {
     if (this.galleryHandler) {
       this.galleryHandler.setSendFunction((msg) => connection.send(msg.type, msg.body));
     }
+    if (this.queryClient) {
+      this.queryClient.setSendFunction((msg) => connection.send(msg.type, msg.body));
+    }
   }
 
   /**
@@ -1309,6 +1321,7 @@ export class Daemon {
   private unwireHandlers(): void {
     this.filesystemHandler?.clearSendFunction();
     this.galleryHandler?.clearSendFunction();
+    this.queryClient?.clearSendFunction();
     this.eventHandler?.clearPendingAcks();
     this.galleryEventHandler?.clearPendingAcks();
     this.fsWatchEventHandler?.clearPendingAcks();
@@ -1320,8 +1333,8 @@ export class Daemon {
    * @param wipeData - if true, delete all cached files and wipe the database
    */
   private cleanupConnection(options: { wipeData: boolean }): void {
-    // Stop any in-progress sync
-    this.enhancedSyncHandler?.stopSync();
+    // Stop sync orchestrator
+    this.syncOrchestrator?.onDisconnected();
 
     // Clear all handler send functions and pending acks
     this.unwireHandlers();
@@ -1363,17 +1376,19 @@ export class Daemon {
       }
     }
 
-    this.startSync();
-    this.logger!.info('core.daemon', 'Full resync started');
-  }
-
-  // --- Sync ---
-
-  startSync(): void {
-    if (this.enhancedSyncHandler) {
-      this.enhancedSyncHandler.startSync();
+    // Re-subscribe to events and start sync orchestrator
+    if (deviceIds.length > 0) {
+      const conn = this.wsServer!.getConnection(deviceIds[0]!);
+      if (conn) {
+        conn.send('fosslink.subscribe', {});
+      }
     }
+    if (this.syncOrchestrator) {
+      this.syncOrchestrator.onConnected();
+    }
+    this.logger!.info('core.daemon', 'Resync started');
   }
+
 
   // --- Internal ---
 

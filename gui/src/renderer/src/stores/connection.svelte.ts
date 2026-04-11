@@ -27,6 +27,12 @@ export const connection = $state({
 /** Sync progress percentage (0-100), null when not syncing */
 export const syncProgress = $state({ percent: null as number | null })
 
+/** True when any sync operation with showSyncing flag is active/queued */
+export const orchestratorSyncing = $state({ active: false })
+
+/** Thread IDs that still have a pending background full sync */
+export const pendingSyncThreads = $state({ ids: new Set<number>() })
+
 // Derived effective state combining socket + app state
 export const effectiveState: { current: EffectiveState } = {
   get current(): EffectiveState {
@@ -79,11 +85,13 @@ export function initConnectionStore(): () => void {
       if (data.to !== 'SYNCING') {
         syncProgress.percent = null
       }
-    } else if (method === 'sync.progress') {
-      const data = params as { percent: number }
+    } else if (method === 'sync.orchestrator.progress') {
+      const data = params as { syncing: boolean; percent: number | null; pendingSyncThreadIds?: number[] }
+      orchestratorSyncing.active = data.syncing
       syncProgress.percent = data.percent
-    } else if (method === 'sync.completed') {
-      syncProgress.percent = null
+      if (data.pendingSyncThreadIds) {
+        pendingSyncThreads.ids = new Set(data.pendingSyncThreadIds)
+      }
     }
   }
 

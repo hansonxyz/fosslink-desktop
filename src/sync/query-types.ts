@@ -1,0 +1,34 @@
+/**
+ * Query System Types
+ *
+ * Shared types for the generic paginated query system.
+ * Desktop sends fosslink.query, phone responds with fosslink.query.result pages,
+ * desktop ACKs each page with fosslink.query.ack.
+ */
+
+/** Packet type constants */
+export const MSG_QUERY = 'fosslink.query' as const;
+export const MSG_QUERY_RESULT = 'fosslink.query.result' as const;
+export const MSG_QUERY_ACK = 'fosslink.query.ack' as const;
+
+/** Desktop → Phone: query request */
+export interface QueryRequest {
+  queryId: string;
+  resource: string;
+  params: Record<string, unknown>;
+}
+
+/** Phone → Desktop: one page of query results */
+export interface QueryResultPage {
+  queryId: string;
+  pageId: string;
+  page: number;
+  totalPages: number;
+  data: unknown[];
+}
+
+/** Desktop → Phone: acknowledge a processed page */
+export interface QueryAck {
+  queryId: string;
+  pageId: string;
+}

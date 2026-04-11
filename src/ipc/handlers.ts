@@ -28,6 +28,8 @@ import {
   MSG_OPEN_APP_STORE,
 } from '../network/packet.js';
 import { getContactPhotosDir } from '../utils/paths.js';
+import { debugConsole } from '../sync/debug-console.js';
+import type { LogLevel } from '../sync/debug-console.js';
 
 const log = createLogger('ipc-handlers');
 
@@ -38,6 +40,9 @@ export type NotificationEmitter = (method: string, params: Record<string, unknow
  * Create a map of method name → handler function.
  * Used by both IPC server (standalone) and DaemonBridge (embedded).
  */
+// Module-level emit reference (set by wireNotifications, used by gallery streaming)
+let emit: NotificationEmitter;
+
 export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
   const methods = new Map<string, MethodHandler>();
 
@@ -280,11 +285,6 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
     }
     const cancelled = daemon.getSmsHandler().cancelSend(queueId);
     return { cancelled };
-  });
-
-  methods.set('sms.request_sync', async () => {
-    daemon.startSync();
-    return { ok: true };
   });
 
   methods.set('sms.mark_thread_read', async (params) => {
@@ -555,8 +555,25 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
 
   // --- Gallery ---
 
-  methods.set('gallery.scan', async () => {
-    return { items: await daemon.requestGalleryScan() };
+  methods.set('gallery.scan', async (params) => {
+    const scope = (params?.['scope'] as string) ?? 'all';
+    const gh = daemon.getGalleryHandler();
+    gh.scanScope = scope;
+
+    // Wire batch callback for progressive rendering
+    gh.onScanBatch = (batchItems, batch, totalBatches) => {
+      debugConsole.log('transport', 'gallery', `Gallery batch ${batch}/${totalBatches} (${batchItems.length} items, scope=${scope})`);
+      if (emit) {
+        emit('gallery.scan.batch', { items: batchItems, batch, totalBatches, scope });
+      }
+    };
+
+    try {
+      const result = await gh.fetchScanDirect();
+      return { items: result };
+    } finally {
+      gh.onScanBatch = null;
+    }
   });
 
   methods.set('gallery.thumbnail', async (params) => {
@@ -606,6 +623,82 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
     return { ok: true };
   });
 
+  // --- Sync orchestrator IPC ---
+
+  methods.set('sync.thread_opened', async (params) => {
+    const threadId = params?.['threadId'] as number | undefined;
+    if (threadId === undefined) return { ok: false };
+    daemon.getSyncOrchestrator()?.onThreadOpened(threadId);
+    return { ok: true };
+  });
+
+  methods.set('sync.thread_closed', async () => {
+    daemon.getSyncOrchestrator()?.onThreadClosed();
+    return { ok: true };
+  });
+
+  // --- Sync debug console ---
+
+  methods.set('debug.console.entries', async (params) => {
+    const level = (params?.['level'] as string) ?? 'narrative';
+    return { entries: debugConsole.getEntries(level as LogLevel) };
+  });
+
+  methods.set('debug.console.execute', async (params) => {
+    const input = params?.['input'] as string;
+    if (!input) throw new Error('Missing required parameter: input');
+    const output = debugConsole.execute(input);
+    return { output };
+  });
+
+  // Register debug console commands
+
+  debugConsole.registerCommand('query', 'Run a query: query <resource> [json params]', (args) => {
+    const resource = args[0];
+    if (!resource) return 'Usage: query <resource> [json params]';
+
+    let params: Record<string, unknown> = {};
+    if (args.length > 1) {
+      try {
+        params = JSON.parse(args.slice(1).join(' '));
+      } catch {
+        return 'Invalid JSON params';
+      }
+    }
+
+    const qc = daemon.getQueryClient();
+    qc.query(resource, params)
+      .then((data) => {
+        debugConsole.log('query', 'query', `Result: ${data.length} items`);
+        debugConsole.log('trace', 'query', JSON.stringify(data).slice(0, 500));
+      })
+      .catch((err) => {
+        debugConsole.log('query', 'error', `Query failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+    return `Sending query: ${resource}`;
+  });
+
+  debugConsole.registerCommand('ws', 'Send raw WebSocket JSON: ws <json>', (args) => {
+    const json = args.join(' ');
+    if (!json) return 'Usage: ws <json>';
+
+    try {
+      const msg = JSON.parse(json);
+      const wsServer = daemon.getWsServer();
+      const deviceIds = wsServer.getConnectedDeviceIds();
+      if (deviceIds.length === 0) return 'No device connected';
+      const conn = wsServer.getConnection(deviceIds[0]!);
+      if (!conn) return 'No device connected';
+      conn.send(msg.type, msg.body ?? {});
+      return `Sent: ${msg.type}`;
+    } catch (err) {
+      return `Error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // Note: sync and db commands are registered in wireNotifications() where emit is available
+
   // --- Debug methods ---
 
   methods.set('debug.thread_info', async (params) => {
@@ -635,7 +728,227 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
  * Wire daemon events to a notification emitter.
  * Used by both IPC server (standalone) and DaemonBridge (embedded).
  */
-export function wireNotifications(daemon: Daemon, emit: NotificationEmitter): void {
+export function wireNotifications(daemon: Daemon, emitFn: NotificationEmitter): void {
+  // Store emit at module level for use by gallery.scan streaming
+  emit = emitFn;
+
+  // Set up the notification function on the daemon for EventListener
+  daemon.setNotifyFunction((method, params) => emitFn(method, params));
+
+  // Forward debug console entries to GUI in real-time
+  debugConsole.onEntry((entry) => {
+    emit('debug.console.entry', entry);
+  });
+
+  // --- Sync debug commands (need emit for UI refresh notifications) ---
+
+  debugConsole.registerCommand('sync', 'Run sync: sync threads|contacts|messages <id> [--full] [--since=Nd]', (args) => {
+    const op = args[0];
+    if (!op) return 'Usage: sync threads|contacts|messages <threadId> [--full] [--since=Nd]';
+
+    const qc = daemon.getQueryClient();
+    const db = daemon.getDatabaseService();
+
+    if (op === 'threads') {
+      import('../sync/operations/thread-list-sync.js').then(({ threadListSync }) =>
+        threadListSync(qc, db).then(() => emit('sms.conversations_updated', {}))
+      ).catch((err) => {
+        debugConsole.log('query', 'error', `Thread sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      return 'Starting thread list sync...';
+    }
+
+    if (op === 'contacts') {
+      import('../sync/operations/contact-sync.js').then(({ contactSync }) =>
+        contactSync(qc, db).then(() => emit('contacts.updated', {}))
+      ).catch((err) => {
+        debugConsole.log('query', 'error', `Contact sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      return 'Starting contact sync...';
+    }
+
+    if (op === 'messages') {
+      const threadIdStr = args[1];
+      if (!threadIdStr) return 'Usage: sync messages <threadId> [--full] [--since=Nd]';
+      const threadId = parseInt(threadIdStr, 10);
+      if (isNaN(threadId)) return 'Invalid threadId';
+
+      const isFull = args.includes('--full');
+      const sinceArg = args.find(a => a.startsWith('--since='));
+      const sinceDays = sinceArg ? parseInt(sinceArg.replace('--since=', '').replace('d', ''), 10) : 7;
+
+      if (isFull) {
+        import('../sync/operations/full-thread-sync.js').then(({ fullThreadSync }) =>
+          fullThreadSync(qc, db, threadId).then(() => {
+            emit('sms.messages', { threadId });
+            emit('sms.conversations_updated', {});
+          })
+        ).catch((err) => {
+          debugConsole.log('query', 'error', `Full sync failed: ${err instanceof Error ? err.message : String(err)}`);
+        });
+        return `Starting full sync of thread ${threadId}...`;
+      } else {
+        const sinceDate = Date.now() - (sinceDays * 86_400_000);
+        import('../sync/operations/quick-message-sync.js').then(({ quickMessageSync }) =>
+          quickMessageSync(qc, db, threadId, sinceDate).then(() => {
+            emit('sms.messages', { threadId });
+            emit('sms.conversations_updated', {});
+          })
+        ).catch((err) => {
+          debugConsole.log('query', 'error', `Message sync failed: ${err instanceof Error ? err.message : String(err)}`);
+        });
+        return `Starting ${sinceDays}-day message sync of thread ${threadId}...`;
+      }
+    }
+
+    return `Unknown sync operation: ${op}. Use: threads, contacts, messages`;
+  });
+
+  debugConsole.registerCommand('db', 'Show DB state: db threads|messages <id> [--last=N]', (args) => {
+    const what = args[0];
+    if (!what) return 'Usage: db threads|messages <threadId> [--last=N]';
+
+    const db = daemon.getDatabaseService();
+
+    if (what === 'threads') {
+      const convs = db.getAllConversations();
+      const lines = convs.slice(0, 30).map(c => {
+        const syncFlag = c.full_sync_complete ? 'SYNCED' : 'pending';
+        const date = new Date(c.date).toLocaleDateString();
+        return `  ${String(c.thread_id).padEnd(6)} ${(c.addresses ?? '').padEnd(20).slice(0, 20)} ${date.padEnd(12)} ${syncFlag}`;
+      });
+      return `Threads (${convs.length} total, showing first 30):\n` +
+        `  ${'ID'.padEnd(6)} ${'Address'.padEnd(20)} ${'Date'.padEnd(12)} Sync\n` +
+        lines.join('\n');
+    }
+
+    if (what === 'messages') {
+      const threadIdStr = args[1];
+      if (!threadIdStr) return 'Usage: db messages <threadId> [--last=N]';
+      const threadId = parseInt(threadIdStr, 10);
+      if (isNaN(threadId)) return 'Invalid threadId';
+
+      const lastArg = args.find(a => a.startsWith('--last='));
+      const lastN = lastArg ? parseInt(lastArg.replace('--last=', ''), 10) : 10;
+
+      const msgs = db.getThreadMessages(threadId);
+      const slice = msgs.slice(-lastN);
+      const lines = slice.map(m => {
+        const date = new Date(m.date).toLocaleString();
+        const dir = m.type === 2 ? '→' : '←';
+        const body = (m.body ?? '').slice(0, 60).replace(/\n/g, ' ');
+        return `  ${dir} ${date}  ${body}`;
+      });
+      return `Thread ${threadId} (${msgs.length} total, last ${slice.length}):\n` + lines.join('\n');
+    }
+
+    return `Unknown: ${what}. Use: threads, messages`;
+  });
+
+  // Phase 4: Event listener commands
+  debugConsole.registerCommand('subscribe', 'Subscribe to real-time events from phone', () => {
+    const wsServer = daemon.getWsServer();
+    const deviceIds = wsServer.getConnectedDeviceIds();
+    if (deviceIds.length === 0) return 'No device connected';
+    const conn = wsServer.getConnection(deviceIds[0]!);
+    if (!conn) return 'No device connected';
+    conn.send('fosslink.subscribe', {});
+    return 'Subscribe request sent — events will appear in log';
+  });
+
+  debugConsole.registerCommand('flags', 'Show threads flagged for post-sync resync', () => {
+    try {
+      const el = daemon.getEventListener();
+      const flagged = el.getAndClearFlaggedThreads();
+      if (flagged.length === 0) return 'No threads flagged for resync';
+      return `Flagged threads (cleared): ${flagged.join(', ')}`;
+    } catch {
+      return 'EventListener not initialized';
+    }
+  });
+
+  // Phase 5: Orchestrator commands
+  debugConsole.registerCommand('status', 'Show orchestrator state, queue, and connection info', () => {
+    const orch = daemon.getSyncOrchestrator();
+    if (!orch) return 'Orchestrator not initialized';
+    const progress = orch.progress;
+    const queue = orch.getQueueInfo();
+    const lines = [
+      `State: ${progress.state}`,
+      `Phase: ${progress.phase || '(idle)'}`,
+      progress.percent !== null ? `Progress: ${progress.percent}%` : '',
+      progress.currentThread ? `Current thread: ${progress.currentThread}` : '',
+      `Current op: ${queue.current ?? '(none)'}`,
+      `Queue: ${queue.queued.length > 0 ? queue.queued.join(', ') : '(empty)'}`,
+    ].filter(Boolean);
+    return lines.join('\n');
+  });
+
+  debugConsole.registerCommand('queue', 'Show operation queue', () => {
+    const orch = daemon.getSyncOrchestrator();
+    if (!orch) return 'Orchestrator not initialized';
+    const info = orch.getQueueInfo();
+    const lines = [`Current: ${info.current ?? '(none)'}`];
+    if (info.queued.length > 0) {
+      lines.push(`Queued (${info.queued.length}):`);
+      for (const name of info.queued) lines.push(`  ${name}`);
+    } else {
+      lines.push('Queue: empty');
+    }
+    return lines.join('\n');
+  });
+
+  debugConsole.registerCommand('pause', 'Pause the sync orchestrator', () => {
+    daemon.getSyncOrchestrator()?.pause();
+    return 'Paused';
+  });
+
+  debugConsole.registerCommand('resume', 'Resume the sync orchestrator', () => {
+    daemon.getSyncOrchestrator()?.resume();
+    return 'Resumed';
+  });
+
+  debugConsole.registerCommand('abort', 'Abort the current sync operation', () => {
+    daemon.getSyncOrchestrator()?.abort();
+    return 'Aborted';
+  });
+
+  debugConsole.registerCommand('stale', 'Mark thread(s) as stale: stale <threadId|all>', (args) => {
+    const target = args[0];
+    if (!target) return 'Usage: stale <threadId|all>';
+    const db = daemon.getDatabaseService();
+
+    if (target === 'all') {
+      const count = db.markStaleThreads(0); // 0 = mark all as stale
+      return `Marked ${count} threads as stale`;
+    }
+
+    const threadId = parseInt(target, 10);
+    if (isNaN(threadId)) return 'Invalid threadId';
+    db.markThreadStale(threadId);
+    return `Thread ${threadId} marked as stale`;
+  });
+
+  debugConsole.registerCommand('reset', 'Clear all sync state flags', () => {
+    const db = daemon.getDatabaseService();
+    db.setSyncState('initial_sync_complete', '0');
+    db.setSyncState('initial_sync_date', '0');
+    const count = db.markStaleThreads(0);
+    return `Sync state reset. ${count} threads marked as needing resync.`;
+  });
+
+  debugConsole.registerCommand('state', 'Show state machine transition history', () => {
+    const orch = daemon.getSyncOrchestrator();
+    if (!orch) return 'Orchestrator not initialized';
+    const history = orch.getStateHistory();
+    if (history.length === 0) return 'No state transitions recorded';
+    const lines = history.map(h => {
+      const time = new Date(h.time).toLocaleTimeString();
+      return `  ${time}  ${h.from} → ${h.to}`;
+    });
+    return `State history:\n${lines.join('\n')}`;
+  });
+
   // State machine transitions
   daemon.getStateMachine().onTransition((transition) => {
     emit('state.changed', {
@@ -745,20 +1058,6 @@ export function wireNotifications(daemon: Daemon, emit: NotificationEmitter): vo
   // Battery updates
   daemon.onBattery((charge, charging) => {
     emit('device.battery', { charge, charging });
-  });
-
-  // Sync events
-  daemon.getEnhancedSyncHandler().onSyncStarted(() => {
-    emit('sync.started', { phase: 'enhanced', mode: 'batch' });
-  });
-
-  daemon.getEnhancedSyncHandler().onSyncProgress((batchIndex, totalBatches) => {
-    const percent = totalBatches > 0 ? Math.round((batchIndex + 1) / totalBatches * 100) : 0;
-    emit('sync.progress', { batchIndex, totalBatches, percent });
-  });
-
-  daemon.getEnhancedSyncHandler().onSyncComplete(() => {
-    emit('sync.completed', { mode: 'enhanced' });
   });
 
   // Real-time event notifications

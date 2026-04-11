@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS conversations (
   date INTEGER NOT NULL,
   read INTEGER NOT NULL DEFAULT 1,
   unread_count INTEGER NOT NULL DEFAULT 0,
-  locally_read_at INTEGER
+  locally_read_at INTEGER,
+  full_sync_complete INTEGER NOT NULL DEFAULT 0,
+  full_sync_date INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_conversations_date ON conversations(date DESC);
 

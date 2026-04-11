@@ -28,6 +28,10 @@ export interface ConversationRow {
   locally_read_at: number | null;
   /** Computed by getAllConversations query — not a stored column. */
   has_outgoing: number;
+  /** 1 if full message history has been synced for this thread. */
+  full_sync_complete: number;
+  /** Epoch ms when last full sync completed. */
+  full_sync_date: number;
 }
 
 export interface MessageRow {
@@ -230,6 +234,59 @@ export class DatabaseService {
     return (this.stmts!.getConversationCount.get() as { count: number }).count;
   }
 
+  /** Mark a thread as fully synced (all message history downloaded). */
+  markThreadFullySynced(threadId: number): void {
+    const db = this.ensureOpen();
+    db.prepare('UPDATE conversations SET full_sync_complete = 1, full_sync_date = ? WHERE thread_id = ?')
+      .run(Date.now(), threadId);
+  }
+
+  /** Mark a thread as needing full resync (stale after 6 days). */
+  markThreadStale(threadId: number): void {
+    const db = this.ensureOpen();
+    db.prepare('UPDATE conversations SET full_sync_complete = 0, full_sync_date = 0 WHERE thread_id = ?')
+      .run(threadId);
+  }
+
+  /** Mark all threads older than maxAge as stale. */
+  markStaleThreads(maxAgeMs: number): number {
+    const db = this.ensureOpen();
+    const cutoff = Date.now() - maxAgeMs;
+    const result = db.prepare(
+      'UPDATE conversations SET full_sync_complete = 0 WHERE full_sync_complete = 1 AND full_sync_date < ? AND full_sync_date > 0'
+    ).run(cutoff);
+    return result.changes;
+  }
+
+  /** Get all thread IDs that exist locally. */
+  getAllThreadIds(): number[] {
+    const db = this.ensureOpen();
+    return (db.prepare('SELECT thread_id FROM conversations').all() as Array<{ thread_id: number }>)
+      .map(r => r.thread_id);
+  }
+
+  /** Get all message IDs for a thread. */
+  getMessageIdsForThread(threadId: number): Set<number> {
+    const db = this.ensureOpen();
+    const rows = db.prepare('SELECT _id FROM messages WHERE thread_id = ?').all(threadId) as Array<{ _id: number }>;
+    return new Set(rows.map(r => r._id));
+  }
+
+  /** Delete specific messages by ID (batch). */
+  deleteMessagesByIds(ids: number[]): void {
+    if (ids.length === 0) return;
+    const db = this.ensureOpen();
+    const txn = db.transaction((batch: number[]) => {
+      const stmt = db.prepare('DELETE FROM messages WHERE _id = ?');
+      const attStmt = db.prepare('DELETE FROM attachments WHERE message_id = ?');
+      for (const id of batch) {
+        stmt.run(id);
+        attStmt.run(id);
+      }
+    });
+    txn(ids);
+  }
+
   /**
    * Repair conversations with empty or missing addresses by rebuilding
    * from the messages table. Returns the number of conversations repaired.
@@ -408,6 +465,11 @@ export class DatabaseService {
     return this.stmts!.getAllContacts.all() as ContactRow[];
   }
 
+  deleteContact(uid: string): void {
+    const db = this.ensureOpen();
+    db.prepare('DELETE FROM contacts WHERE uid = ?').run(uid);
+  }
+
   getContactCount(): number {
     this.ensureOpen();
     return (this.stmts!.getContactCount.get() as { count: number }).count;
@@ -572,7 +634,9 @@ export class DatabaseService {
           date = excluded.date,
           read = excluded.read,
           unread_count = excluded.unread_count,
-          locally_read_at = conversations.locally_read_at
+          locally_read_at = conversations.locally_read_at,
+          full_sync_complete = conversations.full_sync_complete,
+          full_sync_date = conversations.full_sync_date
       `),
       getConversation: db.prepare('SELECT * FROM conversations WHERE thread_id = ?'),
       getAllConversations: db.prepare(`

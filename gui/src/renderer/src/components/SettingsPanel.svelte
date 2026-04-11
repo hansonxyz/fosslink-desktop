@@ -14,9 +14,10 @@
     onUnpaired: () => void
     onAbout: () => void
     onContactMigration?: () => void
+    onSyncConsole?: () => void
   }
 
-  const { onClose, onUnpaired, onAbout, onContactMigration }: Props = $props()
+  const { onClose, onUnpaired, onAbout, onContactMigration, onSyncConsole }: Props = $props()
 
   let confirmingUnpair = $state(false)
   let unpairing = $state(false)
@@ -449,12 +450,22 @@
     </div>
 
     <div class="settings-panel__section">
-      <button
-        class="settings-panel__btn settings-panel__btn--outline"
-        onclick={onAbout}
-      >
-        {t('settings.aboutBtn')}
-      </button>
+      <div class="settings-panel__device-actions">
+        <button
+          class="settings-panel__btn settings-panel__btn--outline"
+          onclick={onAbout}
+        >
+          {t('settings.aboutBtn')}
+        </button>
+        {#if __DEV_BUILD__}
+          <button
+            class="settings-panel__btn settings-panel__btn--outline"
+            onclick={() => onSyncConsole?.()}
+          >
+            Sync Console
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

@@ -2,6 +2,7 @@
   import { conversations } from '../stores/conversations.svelte'
   import { displayConversations } from '../stores/conversations.svelte'
   import { messages, displayMessages, loadThread, addPendingReaction } from '../stores/messages.svelte'
+  import { pendingSyncThreads } from '../stores/connection.svelte'
   import { clearAttachmentStates, requestDownload } from '../stores/attachments.svelte'
   import {
     sendMessage as queueSendMessage,
@@ -101,6 +102,10 @@
 
   const headerContact = $derived(
     selectedConversation ? findContactByPhone(selectedConversation.addresses[0] ?? '') : undefined,
+  )
+
+  const isSyncPending = $derived(
+    selectedConversation !== null && pendingSyncThreads.ids.has(selectedConversation.threadId),
   )
 
   const canSend = $derived(messageText.trim().length > 0 || draftAttachments.length > 0)
@@ -691,7 +696,7 @@
             photo={selectedConversation.avatarPhoto}
           />
           <div class="message-thread__header-text">
-            <h2 class="message-thread__name">{selectedConversation.displayName}</h2>
+            <h2 class="message-thread__name">{selectedConversation.displayName}{#if isSyncPending}<span class="message-thread__sync-pending"> - Sync Pending</span>{/if}</h2>
             {#if selectedConversation.addresses.length === 1}
               <span class="message-thread__address">{selectedConversation.addresses[0]}</span>
             {/if}
@@ -706,7 +711,7 @@
             photo={selectedConversation.avatarPhoto}
           />
           <div class="message-thread__header-text">
-            <h2 class="message-thread__name">{selectedConversation.displayName}</h2>
+            <h2 class="message-thread__name">{selectedConversation.displayName}{#if isSyncPending}<span class="message-thread__sync-pending"> - Sync Pending</span>{/if}</h2>
           </div>
         </div>
       {/if}
@@ -1035,6 +1040,12 @@
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-semibold);
     color: var(--text-primary);
+  }
+
+  .message-thread__sync-pending {
+    font-weight: var(--font-weight-bold);
+    color: var(--warning);
+    font-size: var(--font-size-sm);
   }
 
   .message-thread__address {
