@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS sync_state (
   value TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pending_operations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  op_type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `;
 
 /** SHA-256 hash of SCHEMA_SQL (first 16 hex chars). Changes automatically when schema changes. */

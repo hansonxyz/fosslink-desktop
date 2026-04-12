@@ -60,6 +60,7 @@ export class EventListener {
     return ids;
   }
 
+
   /**
    * Handle an incoming fosslink.sms.event packet.
    * Applies to DB immediately and emits IPC notifications.

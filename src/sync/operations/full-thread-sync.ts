@@ -54,6 +54,10 @@ export async function fullThreadSync(
     threadId,
   })) as MessageFromPhone[];
 
+  // Get the phone's timestamp from when the query was executed — messages
+  // arriving via real-time events AFTER this time should not be deleted
+  const queryTimestamp = queryClient.lastQueryTimestamp ?? Date.now();
+
   // Track seen IDs for delete detection (Option B)
   const seenIds = new Set<number>();
   let synced = 0;
@@ -96,12 +100,16 @@ export async function fullThreadSync(
     synced++;
   }
 
-  // Delete detection: find local messages not in the phone's result
-  const localIds = db.getMessageIdsForThread(threadId);
+  // Delete detection: find local messages not in the phone's result,
+  // but only for messages that existed BEFORE the query started.
+  // Messages with date > queryTimestamp arrived via real-time events during
+  // the sync and should be preserved (they weren't in the query result
+  // because they didn't exist when the phone executed the query).
+  const localMessages = db.getThreadMessages(threadId);
   const deletedIds: number[] = [];
-  for (const localId of localIds) {
-    if (!seenIds.has(localId)) {
-      deletedIds.push(localId);
+  for (const msg of localMessages) {
+    if (!seenIds.has(msg._id) && msg.date <= queryTimestamp) {
+      deletedIds.push(msg._id);
     }
   }
 

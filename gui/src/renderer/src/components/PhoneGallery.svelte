@@ -12,6 +12,7 @@
     requestFullFile,
     openGallery,
     closeGallery,
+    exitThreadMedia,
     subscribeGalleryEvents,
     subscribeFsWatchEvents,
     watchFolder,
@@ -61,7 +62,7 @@
   let retryTimer: ReturnType<typeof setInterval> | undefined
 
   $effect(() => {
-    const needsRetry = isDeviceConnected && (
+    const needsRetry = !isThreadMedia && isDeviceConnected && (
       gallery.scanState === 'error' ||
       (gallery.scanState === 'ready' && gallery.items.length === 0)
     )
@@ -98,7 +99,10 @@
 
   onMount(() => {
     openGallery()
-    void scanGallery()
+    // Don't scan if already in thread_media mode (items were loaded before mount)
+    if (gallery.viewMode !== 'thread_media') {
+      void scanGallery()
+    }
 
     const unsubscribeEvents = subscribeGalleryEvents()
     const unsubscribeWatchEvents = subscribeFsWatchEvents()
@@ -164,8 +168,13 @@
     window.api.showGalleryContextMenu(item.path)
   }
 
+  const isThreadMedia = $derived(gallery.viewMode === 'thread_media')
+
   function handleBackClick(): void {
-    if (inFolderDetail) {
+    if (isThreadMedia) {
+      exitThreadMedia()
+      onClose()
+    } else if (inFolderDetail) {
       gallery.selectedFolder = null
     } else {
       onClose()
@@ -188,9 +197,9 @@
     { key: 'all', label: 'gallery.viewAll' },
   ]
 
-  // "Show in Explorer" — visible in DCIM mode or when viewing a single folder
+  // "Show in Explorer" — visible in DCIM, screenshots, folder detail, or thread media
   const showExplorerBtn = $derived(
-    gallery.viewMode === 'dcim' || gallery.viewMode === 'screenshots' || inFolderDetail,
+    gallery.viewMode === 'dcim' || gallery.viewMode === 'screenshots' || inFolderDetail || isThreadMedia,
   )
 
   const explorerFolderPath = $derived(
@@ -203,29 +212,57 @@
   let explorerError = $state('')
 
   async function handleShowInExplorer(): Promise<void> {
-    if (!explorerFolderPath) return
     explorerLoading = true
     explorerError = ''
     try {
-      // Ensure WebDAV is running
-      let port = 0
-      try {
-        const status = await window.api.invoke('webdav.status') as { running: boolean; port: number }
-        if (status.running) {
-          port = status.port
+      if (isThreadMedia && gallery.threadMediaId) {
+        // Wait for thread media to finish loading before mounting
+        while (gallery.scanState === 'scanning') {
+          await new Promise(r => setTimeout(r, 200))
         }
-      } catch {
-        // Not connected — will try to start
-      }
+        if (gallery.scanState !== 'ready' || gallery.items.length === 0) {
+          explorerError = 'No media loaded'
+          return
+        }
 
-      if (!port) {
-        const result = await window.api.invoke('webdav.start') as { port: number }
-        port = result.port
-      }
+        // Use the shared WebDAV mount with /_thread_{id}/ virtual path
+        let port = 0
+        try {
+          const status = await window.api.invoke('webdav.status') as { running: boolean; port: number }
+          if (status.running) port = status.port
+        } catch { /* not started */ }
 
-      const result = await window.api.openWebdavFolder(port, explorerFolderPath)
-      if (!result.ok) {
-        explorerError = result.error ?? 'Failed to open folder'
+        if (!port) {
+          const startResult = await window.api.invoke('webdav.start') as { port: number }
+          port = startResult.port
+        }
+
+        const result = await window.api.openWebdavFolder(port, `_thread_${gallery.threadMediaId}`)
+        if (!result.ok) {
+          explorerError = result.error ?? 'Failed to open folder'
+        }
+      } else {
+        if (!explorerFolderPath) return
+        // Normal gallery — use the phone filesystem WebDAV
+        let port = 0
+        try {
+          const status = await window.api.invoke('webdav.status') as { running: boolean; port: number }
+          if (status.running) {
+            port = status.port
+          }
+        } catch {
+          // Not connected — will try to start
+        }
+
+        if (!port) {
+          const result = await window.api.invoke('webdav.start') as { port: number }
+          port = result.port
+        }
+
+        const result = await window.api.openWebdavFolder(port, explorerFolderPath)
+        if (!result.ok) {
+          explorerError = result.error ?? 'Failed to open folder'
+        }
       }
     } catch (err) {
       explorerError = err instanceof Error ? err.message : 'Failed to open folder'
@@ -287,10 +324,25 @@
           </svg>
         {/if}
       </button>
-      <h2 class="gallery__title">{inFolderDetail ? gallery.selectedFolder : t('gallery.title')}</h2>
+      <h2 class="gallery__title">{isThreadMedia ? `Media — ${gallery.threadMediaName}` : inFolderDetail ? gallery.selectedFolder : t('gallery.title')}</h2>
     </div>
     <div class="gallery__controls">
-      {#if showExplorerBtn}
+      {#if isThreadMedia}
+        <button
+          class="gallery__explorer-btn"
+          onclick={() => void handleShowInExplorer()}
+          disabled={explorerLoading}
+          title="Open in file manager"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+          </svg>
+          {explorerLoading ? 'Mounting...' : 'Show in Explorer'}
+        </button>
+        {#if explorerError}
+          <span class="gallery__explorer-error" title={explorerError}>Mount failed</span>
+        {/if}
+      {:else if showExplorerBtn}
         <button
           class="gallery__explorer-btn"
           onclick={() => void handleShowInExplorer()}
@@ -307,6 +359,7 @@
         {/if}
         <div class="gallery__separator"></div>
       {/if}
+      {#if !isThreadMedia}
       <div class="gallery__tabs">
         {#each viewModes as mode}
           <button
@@ -354,6 +407,7 @@
           </svg>
         </button>
       </div>
+      {/if}
     </div>
   </div>
 

@@ -3,6 +3,7 @@
   import { displayConversations } from '../stores/conversations.svelte'
   import { messages, displayMessages, loadThread, addPendingReaction } from '../stores/messages.svelte'
   import { pendingSyncThreads } from '../stores/connection.svelte'
+  import { loadThreadMedia } from '../stores/gallery.svelte'
   import { clearAttachmentStates, requestDownload } from '../stores/attachments.svelte'
   import {
     sendMessage as queueSendMessage,
@@ -703,7 +704,7 @@
           </div>
         </button>
       {:else}
-        <div class="message-thread__header-info">
+        <button class="message-thread__header-info message-thread__header-info--clickable" onclick={() => { showContactPopup = true }}>
           <Avatar
             initials={selectedConversation.avatarInitials}
             color={selectedConversation.avatarColor}
@@ -713,9 +714,23 @@
           <div class="message-thread__header-text">
             <h2 class="message-thread__name">{selectedConversation.displayName}{#if isSyncPending}<span class="message-thread__sync-pending"> - Sync Pending</span>{/if}</h2>
           </div>
-        </div>
+        </button>
       {/if}
       <div class="message-thread__header-actions">
+        <button
+          class="message-thread__icon-btn"
+          onclick={() => {
+            if (selectedConversation) {
+              void loadThreadMedia(selectedConversation.threadId, selectedConversation.displayName)
+              window.dispatchEvent(new Event('fosslink:open-gallery'))
+            }
+          }}
+          title="View Media"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+          </svg>
+        </button>
         <button
           class="message-thread__icon-btn"
           onclick={() => promptDial(selectedConversation!.addresses[0]!)}
@@ -844,12 +859,38 @@
     {/if}
   {/if}
 
-  {#if showContactPopup && headerContact}
+  {#if showContactPopup && selectedConversation}
+    {@const contactForPopup = headerContact ?? {
+      uid: '',
+      name: selectedConversation.displayName,
+      phone_numbers: JSON.stringify(selectedConversation.addresses),
+      photo_path: null,
+      photo_mime: null,
+      emails: null,
+      addresses: null,
+      organization: null,
+      notes: null,
+      birthday: null,
+      nickname: null,
+      account_type: null,
+      account_name: null,
+      timestamp: 0,
+    } satisfies ContactRow}
     <ContactDetail
-      contact={headerContact}
-      avatarPhoto={selectedConversation?.avatarPhoto ?? null}
+      contact={contactForPopup}
+      avatarPhoto={selectedConversation.avatarPhoto ?? null}
+      threadAddresses={selectedConversation.addresses}
+      threadId={selectedConversation.threadId}
       onClose={() => { showContactPopup = false }}
       onDial={(num) => { showContactPopup = false; promptDial(num) }}
+      onViewMedia={() => {
+        showContactPopup = false
+        if (selectedConversation) {
+          void loadThreadMedia(selectedConversation.threadId, selectedConversation.displayName)
+          // Dispatch event to open gallery in App.svelte
+          window.dispatchEvent(new Event('fosslink:open-gallery'))
+        }
+      }}
     />
   {/if}
 

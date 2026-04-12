@@ -75,6 +75,9 @@ export class SyncOrchestrator {
   // Priority thread sync
   private priorityThreadId: number | null = null;
 
+  // Currently open thread (for count verification on reconnect)
+  private openThreadId: number | null = null;
+
   // State transition history for debug
   private stateHistory: Array<{ from: string; to: string; time: number }> = [];
 
@@ -146,6 +149,11 @@ export class SyncOrchestrator {
     this.queue.push({ name: 'contact_sync', showSyncing: true, run: () => this.runContactSync() });
     this.queue.push({ name: 'message_sync', showSyncing: true, run: () => this.runBatchMessageSync() });
 
+    // If a thread was open during disconnect, verify its count after syncs complete
+    if (this.openThreadId !== null) {
+      this.queueCountVerification(this.openThreadId);
+    }
+
     // Tell event listener that sync is starting
     this.eventListener.setSyncActive(true);
 
@@ -169,6 +177,7 @@ export class SyncOrchestrator {
 
   /** Called when the user opens a thread. */
   onThreadOpened(threadId: number): void {
+    this.openThreadId = threadId;
     if (this._state === 'disconnected') return;
 
     const conv = this.db.getConversation(threadId);
@@ -203,10 +212,9 @@ export class SyncOrchestrator {
         run: () => this.runFullThreadSync(threadId, false),
       });
     } else {
-      // Thread is current — do a quick 1-week background sync
-      debugConsole.log('query', 'sync', `Thread ${threadId} opened — quick background sync`);
+      // Thread is current — do a quick 1-week sync, then verify count after all syncs settle
+      debugConsole.log('query', 'sync', `Thread ${threadId} opened — quick sync + count verification`);
       const sinceDate = Date.now() - ONE_WEEK_MS;
-      // Don't interrupt current op, just append to front of queue
       this.queue.unshift({
         name: `quick_sync_${threadId}`,
         showSyncing: false,
@@ -215,12 +223,15 @@ export class SyncOrchestrator {
           this.notify('sms.messages', { threadId });
         },
       });
+      // Count verification appended to end — runs after all in-flight syncs complete
+      this.queueCountVerification(threadId);
       if (!this.running) this.drainQueue();
     }
   }
 
   /** Called when user leaves a thread. Aborts priority sync if it was for that thread. */
   onThreadClosed(): void {
+    this.openThreadId = null;
     if (this.priorityThreadId !== null) {
       const wasId = this.priorityThreadId;
       this.priorityThreadId = null;
@@ -382,7 +393,55 @@ export class SyncOrchestrator {
   private async runThreadSync(): Promise<void> {
     this.setState('thread_sync');
     await threadListSync(this.queryClient, this.db);
+
+    // Flush pending operations queued while disconnected
+    await this.flushPendingOperations();
+
+    // Sync filter list from phone
+    debugConsole.narrative('Synchronizing filter list...');
+    const filterItems = await this.queryClient.query('filter.list');
+    const numbers = (filterItems as Array<{ number: string }>).map(i => i.number);
+    this.notify('filter.list_synced', { numbers });
+    debugConsole.narrative(`Filter list synced — ${numbers.length} numbers`);
+
+    // Sync read overrides from phone
+    debugConsole.narrative('Synchronizing read state...');
+    const readItems = await this.queryClient.query('read.list');
+    const overrides = readItems as Array<{ threadId: number; readAt: number }>;
+    for (const { threadId, readAt } of overrides) {
+      const conv = this.db.getConversation(threadId);
+      if (conv && (conv.locally_read_at === null || readAt > conv.locally_read_at)) {
+        this.db.markThreadLocallyRead(threadId);
+      }
+    }
+    debugConsole.narrative(`Read state synced — ${overrides.length} overrides`);
+
     this.notify('sms.conversations_updated', {});
+  }
+
+  /** Flush pending operations that were queued while disconnected. */
+  private async flushPendingOperations(): Promise<void> {
+    const ops = this.db.getPendingOperations();
+    if (ops.length === 0) return;
+
+    debugConsole.narrative(`Flushing ${ops.length} pending operations...`);
+
+    for (const op of ops) {
+      try {
+        if (op.op_type === 'filter.set') {
+          await this.queryClient.query('filter.set', op.payload);
+        } else if (op.op_type === 'read.set') {
+          await this.queryClient.query('read.set', op.payload);
+        }
+        this.db.removePendingOperation(op.id);
+      } catch (err) {
+        debugConsole.log('query', 'error',
+          `Failed to flush operation ${op.op_type}: ${err instanceof Error ? err.message : String(err)}`);
+        break; // Stop on first failure — will retry on next connect
+      }
+    }
+
+    debugConsole.narrative('Pending operations flushed');
   }
 
   private async runContactSync(): Promise<void> {
@@ -497,6 +556,63 @@ export class SyncOrchestrator {
 
     if (showBanner) {
       this.notify('sync.thread_sync_complete', { threadId });
+    }
+  }
+
+  /**
+   * Queue a count verification for a thread at the end of the queue.
+   * Runs after all in-flight syncs complete. If the local message count
+   * doesn't match the phone's, marks the thread for background full sync.
+   */
+  private queueCountVerification(threadId: number): void {
+    // Don't duplicate if already queued
+    if (this.queue.some(op => op.name === `count_verify_${threadId}`)) return;
+
+    this.queue.push({
+      name: `count_verify_${threadId}`,
+      showSyncing: false,
+      run: () => this.verifyThreadCount(threadId),
+    });
+  }
+
+  private async verifyThreadCount(threadId: number): Promise<void> {
+    const conv = this.db.getConversation(threadId);
+    if (!conv) return;
+
+    const threadName = conv.addresses ?? String(threadId);
+
+    const result = await this.queryClient.query('threads.count', { threadIds: [threadId] });
+    const counts = result as Array<{ threadId: number; count: number }>;
+    if (counts.length === 0) return;
+
+    const phoneCount = counts[0]!.count;
+    const localIds = this.db.getMessageIdsForThread(threadId);
+    const localCount = localIds.size;
+
+    if (phoneCount !== localCount) {
+      debugConsole.narrative(
+        `Thread ${threadId} (${threadName}) count mismatch: local=${localCount}, phone=${phoneCount} — marking for full sync`,
+      );
+      this.db.markThreadStale(threadId);
+
+      // Kick the background sync queue if it's not already running
+      if (!this.queue.some(op => op.name === `bg_full_sync_${threadId}`)) {
+        this.queue.push({
+          name: `bg_full_sync_${threadId}`,
+          showSyncing: this.bgFullSyncTotal > 0, // Match current sync indicator state
+          run: async () => {
+            await fullThreadSync(this.queryClient, this.db, threadId);
+            if (this.bgFullSyncTotal > 0 && this.bgFullSyncCompleted < this.bgFullSyncTotal) {
+              this.bgFullSyncCompleted++;
+            }
+            this.notify('sms.messages', { threadId });
+          },
+        });
+        if (!this.running) void this.drainQueue();
+      }
+    } else {
+      debugConsole.log('query', 'sync',
+        `Thread ${threadId} (${threadName}) count verified: ${localCount} messages`);
     }
   }
 

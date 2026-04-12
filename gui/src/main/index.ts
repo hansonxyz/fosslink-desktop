@@ -468,14 +468,29 @@ function setupIpcHandlers(): void {
             try {
               if (!daemonClient || !daemonClient.isConnected() || !mainWindow) return
 
-              // Download the file first (returns cached path if already downloaded)
-              const result = (await daemonClient.call('gallery.download', {
-                path: filePath,
-              })) as { localPath: string }
+              let localPath: string
 
-              if (!result?.localPath) return
+              // Handle MMS attachment paths (mms://{partId}/{messageId})
+              if (filePath.startsWith('mms://')) {
+                const parts = filePath.slice(6).split('/')
+                const partId = parseInt(parts[0] ?? '0', 10)
+                const messageId = parseInt(parts[1] ?? '0', 10)
+                const attResult = (await daemonClient.call('sms.get_attachment', {
+                  partId,
+                  messageId,
+                })) as { attachments: Array<{ localPath: string }> }
+                localPath = attResult?.attachments?.[0]?.localPath
+                if (!localPath) return
+              } else {
+                // Gallery file — download via gallery system
+                const result = (await daemonClient.call('gallery.download', {
+                  path: filePath,
+                })) as { localPath: string }
+                if (!result?.localPath) return
+                localPath = result.localPath
+              }
 
-              const diskExt = extname(result.localPath)
+              const diskExt = extname(localPath)
               const fileName = basename(filePath)
               const defaultName = fileName || `gallery_file${diskExt}`
               const extNoDot = (diskExt || '.bin').slice(1)
@@ -491,7 +506,7 @@ function setupIpcHandlers(): void {
               })
 
               if (!dialogResult.canceled && dialogResult.filePath) {
-                await copyFile(result.localPath, dialogResult.filePath)
+                await copyFile(localPath, dialogResult.filePath)
               }
             } catch (err) {
               log('gui.main', 'Gallery context menu save failed', {
@@ -513,13 +528,27 @@ function setupIpcHandlers(): void {
       try {
         if (!daemonClient || !daemonClient.isConnected() || !mainWindow) return
 
-        const result = (await daemonClient.call('gallery.download', {
-          path: filePath,
-        })) as { localPath: string }
+        let localPath: string
 
-        if (!result?.localPath) return
+        if (filePath.startsWith('mms://')) {
+          const parts = filePath.slice(6).split('/')
+          const partId = parseInt(parts[0] ?? '0', 10)
+          const messageId = parseInt(parts[1] ?? '0', 10)
+          const attResult = (await daemonClient.call('sms.get_attachment', {
+            partId,
+            messageId,
+          })) as { attachments: Array<{ localPath: string }> }
+          localPath = attResult?.attachments?.[0]?.localPath
+          if (!localPath) return
+        } else {
+          const result = (await daemonClient.call('gallery.download', {
+            path: filePath,
+          })) as { localPath: string }
+          if (!result?.localPath) return
+          localPath = result.localPath
+        }
 
-        const diskExt = extname(result.localPath)
+        const diskExt = extname(localPath)
         const fileName = basename(filePath)
         const defaultName = fileName || `gallery_file${diskExt}`
         const extNoDot = (diskExt || '.bin').slice(1)
@@ -535,7 +564,7 @@ function setupIpcHandlers(): void {
         })
 
         if (!dialogResult.canceled && dialogResult.filePath) {
-          await copyFile(result.localPath, dialogResult.filePath)
+          await copyFile(localPath, dialogResult.filePath)
         }
       } catch (err) {
         log('gui.main', 'Gallery save failed', {

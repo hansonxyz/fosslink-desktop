@@ -13,6 +13,7 @@ import { devices } from './devices.svelte'
 import { battery } from './battery.svelte'
 import { syncProgress } from './connection.svelte'
 import { scrollState } from './scroll.svelte'
+import { resetFilterList } from './filter-list.svelte'
 import { closeLightbox } from './lightbox.svelte'
 import { resetGallery } from './gallery.svelte'
 import { clearAttachmentStates } from './attachments.svelte'
@@ -70,4 +71,7 @@ export function resetAppData(): void {
 
   // Send queue
   resetSendQueue()
+
+  // Filter list
+  resetFilterList()
 }

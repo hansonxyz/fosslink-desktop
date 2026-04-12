@@ -184,7 +184,7 @@ export const en: Record<string, string> = {
   // About dialog
   'about.close': 'Close',
   'about.name': 'FossLink',
-  'about.version': 'Version 1.3.0',
+  'about.version': 'Version 1.4.0',
   'about.credit': '2026 by Brian Hanson',
   'about.releasedUnder': 'Released under the',
   'about.mitLicense': 'MIT License',

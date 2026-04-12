@@ -2,15 +2,33 @@
   import Avatar from './Avatar.svelte'
   import { getInitials, getAvatarColor } from '../lib/avatar'
   import { formatPhone } from '../lib/phone'
+  import { filterList, addToFilterList, removeFromFilterList } from '../stores/filter-list.svelte'
 
   interface Props {
     contact: ContactRow
     avatarPhoto: string | null
+    /** The thread's addresses — used for filter list operations. */
+    threadAddresses?: string[]
+    /** Thread ID — used for media gallery. */
+    threadId?: number
     onClose: () => void
     onDial?: (phoneNumber: string) => void
+    onViewMedia?: () => void
   }
 
-  let { contact, avatarPhoto, onClose, onDial }: Props = $props()
+  let { contact, avatarPhoto, threadAddresses, threadId, onClose, onDial, onViewMedia }: Props = $props()
+
+  const filterAddress = $derived(threadAddresses?.[0] ?? '')
+  const isCurrentlyFiltered = $derived(filterAddress ? filterList.isFiltered(filterAddress) : false)
+
+  async function toggleFilter(): Promise<void> {
+    if (!filterAddress) return
+    if (isCurrentlyFiltered) {
+      await removeFromFilterList(filterAddress)
+    } else {
+      await addToFilterList(filterAddress)
+    }
+  }
 
   function handleBackdropClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) {
@@ -211,6 +229,32 @@
           {formatAccountType(contact.account_type)}{#if contact.account_name} · {contact.account_name}{/if}
         </p>
       {/if}
+
+      <!-- View media -->
+      {#if onViewMedia}
+        <div class="dialog__divider"></div>
+        <button class="dialog__media-btn" onclick={onViewMedia}>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+          </svg>
+          View Media
+        </button>
+      {/if}
+
+      <!-- Filter list toggle -->
+      {#if filterAddress}
+        <div class="dialog__divider"></div>
+        <button class="dialog__filter-btn" class:dialog__filter-btn--active={isCurrentlyFiltered} onclick={() => void toggleFilter()}>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            {#if isCurrentlyFiltered}
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+            {:else}
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+            {/if}
+          </svg>
+          {isCurrentlyFiltered ? 'Remove from Filter List' : 'Add to Filter List'}
+        </button>
+      {/if}
     </div>
   </div>
 </div>
@@ -363,5 +407,56 @@
     color: var(--text-muted);
     margin: 0;
     text-align: center;
+  }
+
+  .dialog__media-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+  }
+
+  .dialog__media-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .dialog__filter-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .dialog__filter-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .dialog__filter-btn--active {
+    border-color: var(--warning);
+    color: var(--warning);
+  }
+
+  .dialog__filter-btn--active:hover {
+    background-color: rgba(255, 193, 7, 0.1);
   }
 </style>

@@ -29,6 +29,8 @@ interface PendingQuery {
   pages: Map<number, unknown[]>;  // page number → data
   totalPages: number | null;      // null until first page arrives
   receivedCount: number;
+  /** Phone's timestamp when the query was executed (from first page). */
+  queryTimestamp: number | null;
   startTime: number;
   /** Optional callback invoked for each page as it arrives (streaming mode). */
   onPage?: (items: unknown[], page: number, totalPages: number) => void;
@@ -143,9 +145,12 @@ export class QueryClient {
 
     const q = this.active;
 
-    // Store total pages from first response
+    // Store total pages and query timestamp from first response
     if (q.totalPages === null) {
       q.totalPages = page.totalPages;
+    }
+    if (q.queryTimestamp === null && page.queryTimestamp) {
+      q.queryTimestamp = page.queryTimestamp;
     }
 
     // Store page data
@@ -174,6 +179,9 @@ export class QueryClient {
     }
   }
 
+  /** Phone's timestamp from the most recently completed query. */
+  lastQueryTimestamp: number | null = null;
+
   /** Whether a query is currently in progress. */
   isBusy(): boolean {
     return this.active !== null;
@@ -199,6 +207,7 @@ export class QueryClient {
       totalPages: null,
       receivedCount: 0,
       startTime: Date.now(),
+      queryTimestamp: null,
       onPage,
     };
 
@@ -226,6 +235,7 @@ export class QueryClient {
       `← ${result.length} items in ${q.totalPages} page${q.totalPages === 1 ? '' : 's'} (${elapsed}ms)`);
 
     this.active = null;
+    this.lastQueryTimestamp = q.queryTimestamp;
     q.resolve(result);
 
     // Dispatch next queued query

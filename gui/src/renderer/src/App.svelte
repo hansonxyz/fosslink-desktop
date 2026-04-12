@@ -38,6 +38,8 @@
   import SyncConsole from './components/SyncConsole.svelte'
   import PairingPage from './pages/PairingPage.svelte'
   import { resetAppData } from './stores/reset'
+  import { initFilterListStore } from './stores/filter-list.svelte'
+  import { exitThreadMedia } from './stores/gallery.svelte'
 
   const CONVERSATION_STATES: Set<EffectiveState> = new Set([
     'connected',
@@ -245,6 +247,7 @@
     const cleanupConversations = initConversationsStore()
     const cleanupMessages = initMessagesStore()
     const cleanupSendQueue = initSendQueueStore()
+    const cleanupFilterList = initFilterListStore()
     const cleanupBattery = initBatteryStore()
 
     void window.api.getAppVersion().then((v) => { appVersion = v })
@@ -255,6 +258,10 @@
     // Listen for version status click from StatusIndicator
     window.addEventListener('fosslink:version-click', handleVersionClick)
 
+    // Listen for thread media gallery open
+    const handleOpenGallery = (): void => { showGallery = true }
+    window.addEventListener('fosslink:open-gallery', handleOpenGallery)
+
     // Auto-check for updates on startup if enabled
     if (settings.autoCheckUpdates) {
       setTimeout(() => {
@@ -264,6 +271,7 @@
 
     return () => {
       window.removeEventListener('fosslink:version-click', handleVersionClick)
+      window.removeEventListener('fosslink:open-gallery', handleOpenGallery)
       window.api.offTelIncoming(handleTelIncoming)
       cleanupConnection()
       cleanupDevices()
@@ -272,6 +280,7 @@
       cleanupMessages()
       cleanupSendQueue()
       cleanupBattery()
+      cleanupFilterList()
     }
   })
 
@@ -289,11 +298,6 @@
       if (showSettings) { showSettings = false; return }
       if (showFindPhone) { showFindPhone = false; return }
       if (conversations.composingNew) { exitCompose(); return }
-      if (conversations.selectedThreadId !== null) {
-        selectConversation(null)
-        loadThread(null)
-        return
-      }
     }
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
@@ -373,7 +377,7 @@
             <button
               class="sidebar__icon-btn"
               class:sidebar__icon-btn--active={showGallery}
-              onclick={() => { if (showGallery) { showGallery = false } else { openExtraPanel(() => { showGallery = true }) } }}
+              onclick={() => { exitThreadMedia(); openExtraPanel(() => { showGallery = true }) }}
               title={t('app.gallery')}
             >
               <svg viewBox="0 0 24 24" width="18" height="18">

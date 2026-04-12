@@ -1085,7 +1085,14 @@ export class Daemon {
       throw new DaemonError(ErrorCode.DAEMON_NOT_RUNNING, 'Daemon not initialized');
     }
 
-    this.webdavServer = new WebdavServer({ fs: this.filesystemHandler });
+    const { HybridFilesystemHandler } = await import('../webdav/hybrid-fs.js');
+    const hybridFs = new HybridFilesystemHandler(
+      this.filesystemHandler,
+      this.smsHandler!,
+      this.databaseService!,
+      this.queryClient!,
+    );
+    this.webdavServer = new WebdavServer({ fs: hybridFs });
     const { port } = await this.webdavServer.start();
     this.logger!.info('core.daemon', 'WebDAV server started', { port });
     return { port, url: this.webdavServer.getMountUrl() };

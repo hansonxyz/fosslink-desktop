@@ -9,6 +9,7 @@
  * both IPC server mode (standalone daemon) and embedded mode (Electron).
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { createLogger } from '../utils/logger.js';
@@ -27,7 +28,7 @@ import {
   MSG_URL_SHARE,
   MSG_OPEN_APP_STORE,
 } from '../network/packet.js';
-import { getContactPhotosDir } from '../utils/paths.js';
+import { getContactPhotosDir, getAttachmentsDir } from '../utils/paths.js';
 import { debugConsole } from '../sync/debug-console.js';
 import type { LogLevel } from '../sync/debug-console.js';
 
@@ -292,8 +293,20 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
     if (threadId === undefined) {
       throw new Error('Missing required parameter: threadId');
     }
-    daemon.getDatabaseService().markThreadLocallyRead(threadId);
-    // Sync to phone if root enabled
+    const db = daemon.getDatabaseService();
+    const readAt = Date.now();
+    db.markThreadLocallyRead(threadId);
+
+    // Send read override to phone (or queue if disconnected)
+    const qc = daemon.getQueryClient();
+    try {
+      await qc.query('read.set', { threadId, readAt });
+    } catch {
+      // Phone disconnected — queue for later
+      db.queueOperation('read.set', { threadId, readAt });
+    }
+
+    // Sync to phone if root enabled (marks SMS as read on the phone itself)
     const ctx = daemon.getStateMachine().getContext();
     if (ctx.peerRootEnabled) {
       daemon.getSmsHandler().markReadOnPhone(threadId);
@@ -590,6 +603,60 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
     return { localPath };
   });
 
+  methods.set('threads.media', async (params) => {
+    const threadId = params?.['threadId'] as number | undefined;
+    if (threadId === undefined) throw new Error('Missing required parameter: threadId');
+    const qc = daemon.getQueryClient();
+    const db = daemon.getDatabaseService();
+    const items = await qc.query('threads.media', { threadId }) as Array<{
+      partId: number;
+      messageId: number;
+      mimeType: string;
+      filename: string;
+      date: number;
+      kind: string;
+      thumbnail?: string; // base64 JPEG
+    }>;
+
+    // Save attachment metadata and inline thumbnails
+    const attachDir = getAttachmentsDir();
+    fs.mkdirSync(attachDir, { recursive: true });
+
+    for (const item of items) {
+      const existing = db.getAttachment(item.partId, item.messageId);
+
+      // Save inline thumbnail if provided and no thumbnail exists yet
+      let thumbnailPath = existing?.thumbnail_path ?? null;
+      if (item.thumbnail && !thumbnailPath) {
+        const thumbFile = path.join(attachDir, `${item.partId}_${item.messageId}_thumb.jpg`);
+        fs.writeFileSync(thumbFile, Buffer.from(item.thumbnail, 'base64'));
+        thumbnailPath = thumbFile;
+      }
+
+      if (!existing) {
+        db.upsertAttachment({
+          part_id: item.partId,
+          message_id: item.messageId,
+          unique_identifier: String(item.partId),
+          mime_type: item.mimeType,
+          filename: item.filename || null,
+          file_size: null,
+          downloaded: 0,
+          local_path: null,
+          thumbnail_path: thumbnailPath,
+        });
+      } else if (thumbnailPath && !existing.thumbnail_path) {
+        db.setAttachmentThumbnail(item.partId, item.messageId, thumbnailPath);
+      }
+
+      // Remove thumbnail data from response (don't send base64 to renderer)
+      delete item.thumbnail;
+    }
+
+    return { items };
+  });
+
+
   methods.set('gallery.open', async () => {
     daemon.openGallery();
     return { ok: true };
@@ -597,6 +664,22 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
 
   methods.set('gallery.close', async () => {
     daemon.closeGallery();
+    return { ok: true };
+  });
+
+  // --- Filter list ---
+
+  methods.set('filter.set', async (params) => {
+    const number = params?.['number'] as string | undefined;
+    const filtered = params?.['filtered'] as boolean | undefined;
+    if (!number || filtered === undefined) throw new Error('Missing required parameters: number, filtered');
+    const qc = daemon.getQueryClient();
+    try {
+      await qc.query('filter.set', { number, filtered });
+    } catch {
+      // Phone disconnected — queue for later
+      daemon.getDatabaseService().queueOperation('filter.set', { number, filtered });
+    }
     return { ok: true };
   });
 

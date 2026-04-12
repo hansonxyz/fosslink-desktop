@@ -287,6 +287,36 @@ export class DatabaseService {
     txn(ids);
   }
 
+  // --- Pending operations queue ---
+
+  /** Queue an operation to be sent to the phone on next connect. */
+  queueOperation(opType: string, payload: Record<string, unknown>): void {
+    const db = this.ensureOpen();
+    db.prepare('INSERT INTO pending_operations (op_type, payload, created_at) VALUES (?, ?, ?)')
+      .run(opType, JSON.stringify(payload), Date.now());
+  }
+
+  /** Get all pending operations, oldest first. */
+  getPendingOperations(): Array<{ id: number; op_type: string; payload: Record<string, unknown>; created_at: number }> {
+    const db = this.ensureOpen();
+    const rows = db.prepare('SELECT * FROM pending_operations ORDER BY id ASC').all() as Array<{
+      id: number; op_type: string; payload: string; created_at: number;
+    }>;
+    return rows.map(r => ({ ...r, payload: JSON.parse(r.payload) as Record<string, unknown> }));
+  }
+
+  /** Remove a pending operation after it has been sent. */
+  removePendingOperation(id: number): void {
+    const db = this.ensureOpen();
+    db.prepare('DELETE FROM pending_operations WHERE id = ?').run(id);
+  }
+
+  /** Clear all pending operations (on unpair/resync). */
+  clearPendingOperations(): void {
+    const db = this.ensureOpen();
+    db.prepare('DELETE FROM pending_operations').run();
+  }
+
   /**
    * Repair conversations with empty or missing addresses by rebuilding
    * from the messages table. Returns the number of conversations repaired.

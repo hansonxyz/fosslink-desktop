@@ -25,6 +25,8 @@ export interface QueryResultPage {
   page: number;
   totalPages: number;
   data: unknown[];
+  /** Phone's timestamp (epoch ms) when the query was executed. */
+  queryTimestamp?: number;
 }
 
 /** Desktop → Phone: acknowledge a processed page */

@@ -19,7 +19,7 @@ export interface GalleryItem {
 type ScanState = 'idle' | 'scanning' | 'ready' | 'error'
 type ThumbnailState = 'idle' | 'loading' | 'ready' | 'failed'
 type DownloadState = 'idle' | 'downloading' | 'ready'
-export type ViewMode = 'dcim' | 'screenshots' | 'folders' | 'all'
+export type ViewMode = 'dcim' | 'screenshots' | 'folders' | 'all' | 'thread_media'
 export type SizeMode = 'thumbnail' | 'mosaic'
 
 interface DownloadEntry {
@@ -31,6 +31,9 @@ let items: GalleryItem[] = $state([])
 let scanState: ScanState = $state('idle')
 let scanError: string = $state('')
 let viewMode: ViewMode = $state('dcim')
+/** Thread ID for thread_media mode */
+let threadMediaId: number | null = $state(null)
+let threadMediaName: string = $state('')
 let sizeMode: SizeMode = $state('thumbnail')
 let hideHidden: boolean = $state(true)
 let selectedFolder: string | null = $state(null)
@@ -46,6 +49,7 @@ const MAX_CONCURRENT_THUMBS = 5
 let activeThumbRequests = 0
 const thumbQueue: string[] = []
 
+
 export const gallery = {
   get items(): GalleryItem[] { return items },
   get scanState(): ScanState { return scanState },
@@ -55,9 +59,13 @@ export const gallery = {
     const changed = viewMode !== v
     viewMode = v
     selectedFolder = null
+    threadMediaId = null
+    threadMediaName = ''
     // Trigger a new scoped scan when switching views
-    if (changed) void scanGallery()
+    if (changed && v !== 'thread_media') void scanGallery()
   },
+  get threadMediaId(): number | null { return threadMediaId },
+  get threadMediaName(): string { return threadMediaName },
   get sizeMode(): SizeMode { return sizeMode },
   set sizeMode(v: SizeMode) { sizeMode = v },
   get hideHidden(): boolean { return hideHidden },
@@ -80,6 +88,9 @@ export function getFolders(): Array<{ name: string; count: number }> {
 
 /** Get filtered items based on current view mode and settings */
 export function getFilteredItems(): GalleryItem[] {
+  // Thread media mode — items are already filtered to the thread
+  if (viewMode === 'thread_media') return items
+
   let result = items
   if (hideHidden) {
     result = result.filter((i) => !i.isHidden)
@@ -92,6 +103,62 @@ export function getFilteredItems(): GalleryItem[] {
     result = result.filter((i) => i.folder === selectedFolder)
   }
   return result
+}
+
+/** Load media items for a specific message thread. */
+export async function loadThreadMedia(id: number, name: string): Promise<void> {
+  threadMediaId = id
+  threadMediaName = name
+  viewMode = 'thread_media'
+  scanState = 'scanning'
+  scanError = ''
+  items = []
+
+  try {
+    const result = (await window.api.invoke('threads.media', { threadId: id })) as {
+      items: Array<{
+        partId: number
+        messageId: number
+        mimeType: string
+        filename: string
+        date: number
+        kind: 'image' | 'video'
+      }>
+    }
+
+    // Convert thread media items to GalleryItem format
+    // Use mms://{partId}/{messageId} as the path key
+    items = (result.items ?? []).map(m => ({
+      path: `mms://${m.partId}/${m.messageId}`,
+      filename: m.filename || `${m.kind}_${m.partId}`,
+      folder: `Thread ${id}`,
+      mtime: Math.floor(m.date / 1000),
+      size: 0,
+      mimeType: m.mimeType,
+      isHidden: false,
+      kind: m.kind,
+      // Store part/message IDs for attachment-based thumbnail/download
+      _partId: m.partId,
+      _messageId: m.messageId,
+    } as GalleryItem))
+
+    scanState = 'ready'
+  } catch (err) {
+    scanError = err instanceof Error ? err.message : String(err)
+    scanState = 'error'
+  }
+}
+
+/** Exit thread media mode and return to DCIM gallery view. */
+export function exitThreadMedia(): void {
+  if (viewMode !== 'thread_media') return
+  threadMediaId = null
+  threadMediaName = ''
+  viewMode = 'dcim'
+  items = []
+  scanState = 'idle'
+  // Trigger a fresh DCIM scan
+  void scanGallery()
 }
 
 /** Get all items grouped by folder (for inline folder view) */
@@ -196,13 +263,31 @@ export function getThumbnailState(path: string): ThumbnailState {
   return thumbnailStates[path] ?? 'idle'
 }
 
+/** Parse mms:// path into partId and messageId */
+function parseMmsPath(path: string): { partId: number; messageId: number } | null {
+  if (!path.startsWith('mms://')) return null
+  const parts = path.slice(6).split('/')
+  if (parts.length !== 2) return null
+  return { partId: parseInt(parts[0]!, 10), messageId: parseInt(parts[1]!, 10) }
+}
+
 /** Build the thumbnail URL for a gallery item (only valid when state is 'ready') */
 export function getGalleryThumbnailUrl(filePath: string): string {
+  const mms = parseMmsPath(filePath)
+  if (mms) {
+    // Use the MMS thumbnail protocol (small cached thumbnails)
+    return `xyzattachment://thumb/${mms.partId}/${mms.messageId}`
+  }
   return `xyzattachment://gallery-thumb/${encodeURIComponent(filePath)}`
 }
 
 /** Build the full file URL for a gallery item */
 export function getGalleryFileUrl(filePath: string): string {
+  const mms = parseMmsPath(filePath)
+  if (mms) {
+    // Use the full MMS attachment file
+    return `xyzattachment://file/${mms.partId}/${mms.messageId}`
+  }
   return `xyzattachment://gallery-file/${encodeURIComponent(filePath)}`
 }
 
@@ -210,6 +295,15 @@ export function getGalleryFileUrl(filePath: string): string {
 export function requestThumbnail(filePath: string): void {
   const current = thumbnailStates[filePath]
   if (current === 'loading' || current === 'ready' || current === 'failed') return
+
+  // MMS attachments — thumbnails were saved to disk by the threads.media IPC handler.
+  // The xyzattachment://thumb/ protocol serves them directly.
+  const mms = parseMmsPath(filePath)
+  if (mms) {
+    // Mark as ready immediately — the thumbnail was saved when threads.media loaded
+    thumbnailStates[filePath] = 'ready'
+    return
+  }
 
   if (activeThumbRequests >= MAX_CONCURRENT_THUMBS) {
     // Queue it — will be processed when a slot opens
@@ -263,6 +357,29 @@ export async function requestFullFile(filePath: string, expectedSize: number = 0
   const current = downloadStates[filePath]
   if (current?.state === 'ready') {
     return getGalleryFileUrl(filePath)
+  }
+
+  // MMS attachments — download via attachment system
+  const mms = parseMmsPath(filePath)
+  if (mms) {
+    const existing = downloadPromises.get(filePath)
+    if (existing) return existing
+
+    downloadStates[filePath] = { state: 'downloading', progress: 0 }
+    const promise = window.api.invoke('sms.get_attachment', {
+      partId: mms.partId,
+      messageId: mms.messageId,
+    }).then(() => {
+      downloadStates[filePath] = { state: 'ready', progress: 100 }
+      downloadPromises.delete(filePath)
+      return getGalleryFileUrl(filePath)
+    }).catch((err) => {
+      downloadStates[filePath] = { state: 'idle', progress: 0 }
+      downloadPromises.delete(filePath)
+      throw err
+    })
+    downloadPromises.set(filePath, promise)
+    return promise
   }
 
   // Deduplicate: return existing in-flight promise

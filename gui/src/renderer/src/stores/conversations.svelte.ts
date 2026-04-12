@@ -9,6 +9,7 @@ import { findContactByPhone } from './contacts.svelte'
 import { formatPhone, normalizePhone } from '../lib/phone'
 import { getInitials, getAvatarColor } from '../lib/avatar'
 import { isVerificationMessage } from '../lib/verification'
+import { filterList } from './filter-list.svelte'
 
 export const conversations = $state({
   raw: [] as ConversationRow[],
@@ -83,6 +84,9 @@ function enrichConversation(row: ConversationRow): DisplayConversation {
 export const displayConversations: { current: DisplayConversation[] } = {
   get current(): DisplayConversation[] {
     let list = conversations.raw.map(enrichConversation)
+
+    // Always hide threads on the filter list
+    list = list.filter((c) => !filterList.isFiltered(c.addresses))
 
     // Default: only show known contacts, threads we've replied to,
     // and verification code threads
