@@ -23,7 +23,7 @@
   }
 
   function handleDownloadUpdate(): void {
-    window.api.openExternal('https://github.com/hansonxyz/fosslink/releases/latest')
+    window.api.openExternal('https://github.com/hansonxyz/fosslink-desktop/releases/latest')
   }
 </script>
 
@@ -52,7 +52,7 @@
       {/if}
 
       <p class="version-lockout__qr-label">{t('version.orScanQR')}</p>
-      <!-- QR code for https://github.com/hansonxyz/fosslink/releases/latest -->
+      <!-- QR code for https://github.com/hansonxyz/fosslink-desktop/releases/latest -->
       <!-- Generated from qrencode — 25x25 modules, version 2 -->
       <svg class="version-lockout__qr" viewBox="0 0 29 29" width="150" height="150" shape-rendering="crispEdges">
         <rect width="29" height="29" fill="white"/>

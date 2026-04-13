@@ -6,7 +6,7 @@
     "name": "Brian Hanson",
     "email": "brian@hansonxyz.com"
   },
-  "homepage": "https://github.com/hansonxyz/fosslink",
+  "homepage": "https://github.com/hansonxyz/fosslink-desktop",
   "license": "MIT",
   "type": "module",
   "main": "./out/main/index.js",

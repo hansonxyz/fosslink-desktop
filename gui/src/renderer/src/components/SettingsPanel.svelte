@@ -48,7 +48,7 @@
 
   function openReleasePage(): void {
     if (updateStatus.state === 'available') {
-      window.api.openExternal(`https://github.com/hansonxyz/fosslink/releases/tag/v${updateStatus.version}`)
+      window.api.openExternal(`https://github.com/hansonxyz/fosslink-desktop/releases/tag/v${updateStatus.version}`)
     }
   }
 
