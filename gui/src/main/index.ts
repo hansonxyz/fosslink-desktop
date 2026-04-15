@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, protocol, net, dialog, shell, nativeImage, powerMonitor } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, protocol, net, dialog, shell, nativeImage, clipboard, powerMonitor } from 'electron'
 import { join, extname, basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs'
@@ -452,12 +452,55 @@ function setupIpcHandlers(): void {
           })()
         },
       },
+      {
+        label: 'Copy Image',
+        click: () => {
+          void (async () => {
+            try {
+              const result = (await daemonClient.call('sms.attachment_path', {
+                partId,
+                messageId,
+              })) as { localPath: string; mimeType: string } | null
+
+              if (!result?.localPath) return
+
+              const image = nativeImage.createFromPath(result.localPath)
+              if (!image.isEmpty()) {
+                clipboard.writeImage(image)
+              }
+            } catch (err) {
+              log('gui.main', 'Context menu copy failed', {
+                error: err instanceof Error ? err.message : String(err),
+              })
+            }
+          })()
+        },
+      },
     ])
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       menu.popup({ window: win })
     }
   })
+
+  const resolveGalleryLocalPath = async (filePath: string): Promise<string | null> => {
+    if (!daemonClient || !daemonClient.isConnected()) return null
+    if (filePath.startsWith('mms://')) {
+      const parts = filePath.slice(6).split('/')
+      const partId = parseInt(parts[0] ?? '0', 10)
+      const messageId = parseInt(parts[1] ?? '0', 10)
+      const attResult = (await daemonClient.call('sms.get_attachment', {
+        partId,
+        messageId,
+      })) as { attachments: Array<{ localPath: string }> }
+      return attResult?.attachments?.[0]?.localPath ?? null
+    } else {
+      const result = (await daemonClient.call('gallery.download', {
+        path: filePath,
+      })) as { localPath: string }
+      return result?.localPath ?? null
+    }
+  }
 
   ipcMain.on('gallery:context-menu', (event, filePath: string) => {
     const menu = Menu.buildFromTemplate([
@@ -466,29 +509,9 @@ function setupIpcHandlers(): void {
         click: () => {
           void (async () => {
             try {
-              if (!daemonClient || !daemonClient.isConnected() || !mainWindow) return
-
-              let localPath: string
-
-              // Handle MMS attachment paths (mms://{partId}/{messageId})
-              if (filePath.startsWith('mms://')) {
-                const parts = filePath.slice(6).split('/')
-                const partId = parseInt(parts[0] ?? '0', 10)
-                const messageId = parseInt(parts[1] ?? '0', 10)
-                const attResult = (await daemonClient.call('sms.get_attachment', {
-                  partId,
-                  messageId,
-                })) as { attachments: Array<{ localPath: string }> }
-                localPath = attResult?.attachments?.[0]?.localPath
-                if (!localPath) return
-              } else {
-                // Gallery file — download via gallery system
-                const result = (await daemonClient.call('gallery.download', {
-                  path: filePath,
-                })) as { localPath: string }
-                if (!result?.localPath) return
-                localPath = result.localPath
-              }
+              if (!mainWindow) return
+              const localPath = await resolveGalleryLocalPath(filePath)
+              if (!localPath) return
 
               const diskExt = extname(localPath)
               const fileName = basename(filePath)
@@ -516,6 +539,26 @@ function setupIpcHandlers(): void {
           })()
         },
       },
+      {
+        label: 'Copy Image',
+        click: () => {
+          void (async () => {
+            try {
+              const localPath = await resolveGalleryLocalPath(filePath)
+              if (!localPath) return
+
+              const image = nativeImage.createFromPath(localPath)
+              if (!image.isEmpty()) {
+                clipboard.writeImage(image)
+              }
+            } catch (err) {
+              log('gui.main', 'Gallery context menu copy failed', {
+                error: err instanceof Error ? err.message : String(err),
+              })
+            }
+          })()
+        },
+      },
     ])
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
@@ -526,27 +569,9 @@ function setupIpcHandlers(): void {
   ipcMain.on('gallery:save', (_event, filePath: string) => {
     void (async () => {
       try {
-        if (!daemonClient || !daemonClient.isConnected() || !mainWindow) return
-
-        let localPath: string
-
-        if (filePath.startsWith('mms://')) {
-          const parts = filePath.slice(6).split('/')
-          const partId = parseInt(parts[0] ?? '0', 10)
-          const messageId = parseInt(parts[1] ?? '0', 10)
-          const attResult = (await daemonClient.call('sms.get_attachment', {
-            partId,
-            messageId,
-          })) as { attachments: Array<{ localPath: string }> }
-          localPath = attResult?.attachments?.[0]?.localPath
-          if (!localPath) return
-        } else {
-          const result = (await daemonClient.call('gallery.download', {
-            path: filePath,
-          })) as { localPath: string }
-          if (!result?.localPath) return
-          localPath = result.localPath
-        }
+        if (!mainWindow) return
+        const localPath = await resolveGalleryLocalPath(filePath)
+        if (!localPath) return
 
         const diskExt = extname(localPath)
         const fileName = basename(filePath)

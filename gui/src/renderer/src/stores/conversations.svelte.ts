@@ -144,9 +144,9 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined
 let hasLoadedOnce = false
 
 /**
- * Refresh conversations from daemon (debounced).
- * During sync, hundreds of sms.messages notifications fire per second.
- * Debounce ensures we fetch at most once per 500ms.
+ * Refresh conversations from daemon (trailing debounce).
+ * During sync, many notifications fire in bursts. Trailing debounce ensures
+ * the sidebar always reflects the final state after a burst settles.
  * First call fires immediately for fast startup.
  */
 export function refreshConversations(): void {
@@ -155,11 +155,11 @@ export function refreshConversations(): void {
     void doRefreshConversations()
     return
   }
-  if (refreshTimer !== undefined) return
+  clearTimeout(refreshTimer)
   refreshTimer = setTimeout(() => {
     refreshTimer = undefined
     void doRefreshConversations()
-  }, 500)
+  }, 100)
 }
 
 async function doRefreshConversations(): Promise<void> {
