@@ -433,13 +433,13 @@ function refreshCurrentThread(threadId?: number): void {
   if (messages.threadId === null) return
   if (threadId !== undefined && threadId !== messages.threadId) return
 
-  if (refreshTimer !== undefined) return
+  clearTimeout(refreshTimer)
   refreshTimer = setTimeout(() => {
     refreshTimer = undefined
     if (messages.threadId !== null) {
       void doLoadThread(messages.threadId)
     }
-  }, 500)
+  }, 100)
 }
 
 /**
