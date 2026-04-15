@@ -89,6 +89,22 @@ export class DaemonBridge {
     }
   }
 
+  /** Force-disconnect all connections. Auto-reconnect will re-establish cleanly. */
+  forceReconnect(): void {
+    try {
+      const ws = this.daemon.getWsServer()
+      if (!ws) return
+      for (const deviceId of ws.getConnectedDeviceIds()) {
+        const conn = ws.getConnection(deviceId)
+        if (conn) {
+          conn.ws.terminate() // Hard terminate, not graceful close
+        }
+      }
+    } catch {
+      // Daemon may not be fully initialized
+    }
+  }
+
   getState(): ConnectionState {
     return this.state
   }

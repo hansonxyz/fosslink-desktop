@@ -90,6 +90,19 @@ export async function quickMessageSync(
     synced++;
   }
 
+  // Update conversation snippet if we found newer messages
+  if (messages.length > 0) {
+    const newest = messages[messages.length - 1]!;
+    const convNow = db.getConversation(threadId);
+    if (convNow && newest.date >= convNow.date) {
+      db.upsertConversation({
+        ...convNow,
+        snippet: newest.body ?? '',
+        date: newest.date,
+      });
+    }
+  }
+
   debugConsole.narrative(`Thread ${threadId} synced — ${synced} messages`);
 
   return { threadId, messagesSynced: synced };

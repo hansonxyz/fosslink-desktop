@@ -121,6 +121,21 @@ export async function fullThreadSync(
   // Mark thread as fully synced
   db.markThreadFullySynced(threadId);
 
+  // Update conversation snippet with the actual newest message in the DB
+  // (may be from a real-time event that arrived after the sync query)
+  const allMessages = db.getThreadMessages(threadId);
+  if (allMessages.length > 0) {
+    const newest = allMessages[allMessages.length - 1]!;
+    const conv = db.getConversation(threadId);
+    if (conv && newest.date >= conv.date) {
+      db.upsertConversation({
+        ...conv,
+        snippet: newest.body ?? '',
+        date: newest.date,
+      });
+    }
+  }
+
   debugConsole.narrative(
     `Thread ${threadId} full sync complete — ${synced} messages` +
     (deletedIds.length > 0 ? `, ${deletedIds.length} deleted` : ''),

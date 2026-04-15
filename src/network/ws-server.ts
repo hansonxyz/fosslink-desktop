@@ -58,6 +58,7 @@ export class WsServer {
   private port = 0;
   private pingTimer: ReturnType<typeof setInterval> | undefined;
   private alive = new Set<WebSocket>();
+  private lastPongTime = new Map<WebSocket, number>();
 
   private deviceId: string | undefined;
   private deviceName = 'FossLink';
@@ -104,8 +105,21 @@ export class WsServer {
     });
 
     // Ping/pong heartbeat to detect stale connections (e.g. after OS standby/resume)
+    const STALE_THRESHOLD = PING_INTERVAL_MS * 3; // 90s without pong = definitely stale
     this.pingTimer = setInterval(() => {
+      const now = Date.now();
       for (const [, conn] of this.connections) {
+        // Check timestamp-based staleness (covers standby where timers didn't fire)
+        const lastPong = this.lastPongTime.get(conn.ws) ?? 0;
+        if (lastPong > 0 && (now - lastPong) > STALE_THRESHOLD) {
+          this.logger.info('network.ws', 'Connection stale (no pong for >90s), terminating', {
+            deviceId: conn.deviceId,
+            lastPongAge: `${Math.round((now - lastPong) / 1000)}s`,
+          });
+          conn.ws.terminate();
+          continue;
+        }
+
         if (!this.alive.has(conn.ws)) {
           // No pong since last ping — connection is dead
           this.logger.info('network.ws', 'Connection stale (no pong), terminating', {
@@ -130,6 +144,7 @@ export class WsServer {
       this.pingTimer = undefined;
     }
     this.alive.clear();
+    this.lastPongTime.clear();
 
     for (const [, conn] of this.connections) {
       conn.ws.close();
@@ -299,6 +314,7 @@ export class WsServer {
     // Mark alive on pong (heartbeat response)
     ws.on('pong', () => {
       this.alive.add(ws);
+      this.lastPongTime.set(ws, Date.now());
     });
 
     ws.on('error', (err) => {
@@ -350,6 +366,7 @@ export class WsServer {
 
     this.connections.set(identity.deviceId, conn);
     this.alive.add(ws); // Mark alive for ping/pong heartbeat
+    this.lastPongTime.set(ws, Date.now());
 
     this.logger.info('network.ws', 'Connection established', {
       deviceId: identity.deviceId,
@@ -367,6 +384,7 @@ export class WsServer {
     if (!conn.connected) return;
     conn.connected = false;
     this.alive.delete(conn.ws);
+    this.lastPongTime.delete(conn.ws);
 
     // Only fire disconnect if we're still the current connection
     if (this.connections.get(conn.deviceId) === conn) {

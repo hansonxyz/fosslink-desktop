@@ -635,10 +635,13 @@
   })
 
   function scrollToBottom(): void {
+    // Double-RAF to ensure virtual scroll layout has fully recalculated
     requestAnimationFrame(() => {
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-      }
+      requestAnimationFrame(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight
+        }
+      })
     })
   }
 

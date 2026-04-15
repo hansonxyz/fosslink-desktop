@@ -1110,10 +1110,12 @@ function onAppReady(): void {
   setupDaemonClient()
   setupAutoUpdater(mainWindow!)
 
-  // On OS resume from sleep/standby, immediately check if phone connection is stale
+  // On OS resume from sleep/standby, force-disconnect and let auto-reconnect
+  // re-establish a clean connection. A stale WebSocket that survived sleep
+  // may have missed events — only a fresh connection + subscribe + sync is reliable.
   powerMonitor.on('resume', () => {
-    log('main', 'OS resumed from sleep, checking connections')
-    daemonClient?.checkConnections()
+    log('main', 'OS resumed from sleep, forcing reconnect')
+    daemonClient?.forceReconnect()
   })
 
   // Handle tel: URL passed as command-line arg on fresh launch (Windows/Linux)
