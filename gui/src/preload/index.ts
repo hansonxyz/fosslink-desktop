@@ -189,6 +189,12 @@ const api = {
     return ipcRenderer.invoke('updater:install') as Promise<void>
   },
 
+  // On Windows: download the installer to temp and run /silent /run, then quit.
+  // On other platforms: open the GitHub releases page.
+  installNow(): Promise<void> {
+    return ipcRenderer.invoke('updater:install-now') as Promise<void>
+  },
+
   getUpdateStatus(): Promise<unknown> {
     return ipcRenderer.invoke('updater:get-status')
   },

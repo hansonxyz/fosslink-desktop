@@ -19,7 +19,15 @@
     return () => window.api.offUpdateStatus(handleStatus)
   })
 
-  const show = $derived(!dismissed && updateStatus.state === 'downloaded')
+  const show = $derived(!dismissed && (
+    updateStatus.state === 'available' ||
+    updateStatus.state === 'downloaded' ||
+    updateStatus.state === 'installing'
+  ))
+
+  function installNow(): void {
+    void window.api.installNow()
+  }
 
   function install(): void {
     void window.api.installUpdate()
@@ -28,15 +36,34 @@
 
 {#if show}
   <div class="update-banner">
-    <span class="update-banner__text">
-      {t('banner.ready', { version: updateStatus.state === 'downloaded' ? updateStatus.version : '' })}
-    </span>
-    <button class="update-banner__btn update-banner__btn--primary" onclick={install}>
-      {t('banner.restart')}
-    </button>
-    <button class="update-banner__btn update-banner__btn--dismiss" onclick={() => (dismissed = true)}>
-      {t('banner.later')}
-    </button>
+    {#if updateStatus.state === 'available'}
+      <span class="update-banner__text">
+        {t('banner.available', { version: updateStatus.version })}
+      </span>
+      <button class="update-banner__btn update-banner__btn--primary" onclick={installNow}>
+        {t('banner.updateNow')}
+      </button>
+      <button class="update-banner__btn update-banner__btn--dismiss" onclick={() => (dismissed = true)}>
+        {t('banner.later')}
+      </button>
+    {:else if updateStatus.state === 'installing'}
+      <span class="update-banner__text">
+        {t('banner.installing', { percent: String(updateStatus.percent) })}
+      </span>
+      <div class="update-banner__progress">
+        <div class="update-banner__progress-fill" style:width="{updateStatus.percent}%"></div>
+      </div>
+    {:else if updateStatus.state === 'downloaded'}
+      <span class="update-banner__text">
+        {t('banner.ready', { version: updateStatus.version })}
+      </span>
+      <button class="update-banner__btn update-banner__btn--primary" onclick={install}>
+        {t('banner.restart')}
+      </button>
+      <button class="update-banner__btn update-banner__btn--dismiss" onclick={() => (dismissed = true)}>
+        {t('banner.later')}
+      </button>
+    {/if}
   </div>
 {/if}
 
@@ -81,5 +108,20 @@
 
   .update-banner__btn--dismiss:hover {
     color: white;
+  }
+
+  .update-banner__progress {
+    width: 120px;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .update-banner__progress-fill {
+    height: 100%;
+    background-color: white;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
   }
 </style>

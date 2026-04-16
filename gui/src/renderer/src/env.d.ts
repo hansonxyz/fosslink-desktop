@@ -224,6 +224,7 @@ type UpdateStatus =
   | { state: 'not-available'; version: string }
   | { state: 'downloading'; percent: number; transferred: number; total: number }
   | { state: 'downloaded'; version: string }
+  | { state: 'installing'; percent: number; version: string }
   | { state: 'error'; message: string }
 
 // Link preview metadata from Open Graph tags
@@ -284,6 +285,7 @@ interface DaemonApi {
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
   installUpdate(): Promise<void>
+  installNow(): Promise<void>
   getUpdateStatus(): Promise<UpdateStatus>
   getAppVersion(): Promise<string>
   onUpdateStatus(callback: (status: UpdateStatus) => void): void

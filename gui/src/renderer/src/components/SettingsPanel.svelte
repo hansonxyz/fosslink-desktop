@@ -46,10 +46,8 @@
     }
   }
 
-  function openReleasePage(): void {
-    if (updateStatus.state === 'available') {
-      window.api.openExternal(`https://github.com/hansonxyz/fosslink-desktop/releases/tag/v${updateStatus.version}`)
-    }
+  function installNow(): void {
+    void window.api.installNow()
   }
 
   function installUpdate(): void {
@@ -64,6 +62,7 @@
       case 'not-available': return t('updates.upToDate')
       case 'downloading': return t('updates.downloading', { percent: String(status.percent) })
       case 'downloaded': return t('updates.ready', { version: status.version })
+      case 'installing': return t('updates.installing', { percent: String(status.percent) })
       case 'error': return t('updates.error', { message: status.message })
     }
   }
@@ -410,9 +409,9 @@
         {#if updateStatus.state === 'available'}
           <button
             class="settings-panel__btn settings-panel__btn--primary"
-            onclick={openReleasePage}
+            onclick={installNow}
           >
-            {t('updates.viewOnGithub')}
+            {t('updates.updateNow')}
           </button>
         {:else if updateStatus.state === 'downloaded'}
           <button
@@ -425,7 +424,7 @@
           <button
             class="settings-panel__btn settings-panel__btn--outline"
             onclick={() => void checkForUpdates()}
-            disabled={updateStatus.state === 'checking' || updateStatus.state === 'downloading'}
+            disabled={updateStatus.state === 'checking' || updateStatus.state === 'downloading' || updateStatus.state === 'installing'}
           >
             {updateStatus.state === 'checking' ? t('updates.checkingBtn') : t('updates.checkBtn')}
           </button>
@@ -443,6 +442,12 @@
       {/if}
 
       {#if updateStatus.state === 'downloading'}
+        <div class="settings-panel__progress-bar">
+          <div class="settings-panel__progress-fill" style:width="{updateStatus.percent}%"></div>
+        </div>
+      {/if}
+
+      {#if updateStatus.state === 'installing'}
         <div class="settings-panel__progress-bar">
           <div class="settings-panel__progress-fill" style:width="{updateStatus.percent}%"></div>
         </div>

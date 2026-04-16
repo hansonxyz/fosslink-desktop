@@ -275,7 +275,7 @@ function setupDaemonClient(): void {
   // Batch high-frequency sms.messages notifications to prevent UI freeze.
   // During sync or after MMS send, the phone can fire 600+ sms.messages
   // notifications in minutes. Each one triggers a synchronous log write and
-  // IPC forward — batching reduces this to one event per 500ms.
+  // IPC forward — batching reduces this to one event per 100ms.
   let smsBatchNewestDate = 0
   const smsBatchThreadIds = new Set<number>()
   let smsBatchCount = 0
@@ -306,7 +306,7 @@ function setupDaemonClient(): void {
         smsBatchNewestDate = data.newestDate
       }
       if (smsBatchTimer === undefined) {
-        smsBatchTimer = setTimeout(flushSmsBatch, 500)
+        smsBatchTimer = setTimeout(flushSmsBatch, 100)
       }
       return
     }

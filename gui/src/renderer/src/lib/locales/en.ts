@@ -154,9 +154,14 @@ export const en: Record<string, string> = {
   'updates.checkBtn': 'Check for Updates',
   'updates.checkingBtn': 'Checking...',
   'updates.viewOnGithub': 'View Update on GitHub',
+  'updates.updateNow': 'Update Now',
   'updates.restartBtn': 'Restart to Update',
+  'updates.installing': 'Downloading update... {percent}%',
 
   // Update banner
+  'banner.available': 'Version {version} is available.',
+  'banner.updateNow': 'Update Now',
+  'banner.installing': 'Downloading update... {percent}%',
   'banner.ready': 'Version {version} is ready to install.',
   'banner.restart': 'Restart to Update',
   'banner.later': 'Later',
@@ -184,7 +189,7 @@ export const en: Record<string, string> = {
   // About dialog
   'about.close': 'Close',
   'about.name': 'FossLink',
-  'about.version': 'Version 1.4.0',
+  'about.version': 'Version 1.5.0',
   'about.credit': '2026 by Brian Hanson',
   'about.releasedUnder': 'Released under the',
   'about.mitLicense': 'MIT License',

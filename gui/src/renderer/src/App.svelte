@@ -262,8 +262,8 @@
     const handleOpenGallery = (): void => { showGallery = true }
     window.addEventListener('fosslink:open-gallery', handleOpenGallery)
 
-    // Auto-check for updates on startup if enabled
-    if (settings.autoCheckUpdates) {
+    // Auto-check for updates on startup if enabled (skip in dev builds)
+    if (!__DEV_BUILD__ && settings.autoCheckUpdates) {
       setTimeout(() => {
         void window.api.checkForUpdates().catch(() => {})
       }, 5000)

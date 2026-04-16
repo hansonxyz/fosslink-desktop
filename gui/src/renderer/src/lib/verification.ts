@@ -9,16 +9,22 @@
 /**
  * Keywords that indicate a message contains a verification code.
  * Kept as a single regex for efficiency. Covers:
- * - verification, verify
+ * - verification, verify, verified
  * - code (generic but combined with a number pattern, low false-positive)
  * - otp (one-time password)
- * - passcode
+ * - passcode, password, PIN
  * - log in / login / sign in / signin
  * - authentication / authenticate
  * - 2fa / two-factor
+ * - confirm / confirmation
+ * - activate / activation
+ * - security (security code / security alert)
+ * - temporary / temp (temporary password)
+ * - access (access code)
+ * - reset (password reset)
  */
 const KEYWORD_RE =
-  /(?:verif(?:y|ication)|code|otp|passcode|log\s?in|sign\s?in|authenticat|2fa|two.?factor)/i
+  /(?:verif(?:y|ied|ication)|code|otp|pass(?:code|word)|pin\b|log\s?in|sign\s?in|authenticat|2fa|two.?factor|confirm|activat|security|temp(?:orary)?|access|reset)/i
 
 /**
  * Code patterns, ordered by specificity:

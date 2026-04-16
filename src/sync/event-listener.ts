@@ -22,7 +22,7 @@ type NotifyCallback = (method: string, params: Record<string, unknown>) => void;
 interface MessageFromEvent {
   _id: number;
   thread_id: number;
-  address: string;
+  addresses?: Array<{ address?: string }>;
   body: string | null;
   date: number;
   type: number;
@@ -95,10 +95,11 @@ export class EventListener {
     const threadIds = new Set<number>();
 
     for (const m of messages) {
+      const address = m.addresses?.[0]?.address ?? '';
       const row: MessageRow = {
         _id: m._id,
         thread_id: m.thread_id,
-        address: m.address ?? '',
+        address,
         body: m.body,
         date: m.date,
         type: m.type,
@@ -143,7 +144,7 @@ export class EventListener {
         // New thread — create it
         this.db.upsertConversation({
           thread_id: m.thread_id,
-          addresses: m.address,
+          addresses: JSON.stringify([address]),
           snippet: m.body ?? '',
           date: m.date,
           read: eventType === 'received' ? 0 : 1,
