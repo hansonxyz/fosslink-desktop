@@ -3,6 +3,7 @@
   import {
     conversations,
     findThreadByAddress,
+    findThreadByAddressSet,
     selectConversation,
     setComposeAddress,
   } from '../stores/conversations.svelte'
@@ -19,10 +20,13 @@
   import ContactAutocomplete from './ContactAutocomplete.svelte'
   import { t } from '../stores/i18n.svelte'
 
-  let resolvedAddress: string | null = $state(null)
+  let recipients: string[] = $state([])
+  let composeLocked = $state(false)
   let hasSent = $state(false)
   let messageText = $state('')
   let textareaEl: HTMLTextAreaElement | undefined = $state()
+  let autocompleteEl: ReturnType<typeof ContactAutocomplete> | undefined = $state()
+
 
   // MMS attachments
   let draftAttachments: DraftAttachment[] = $state([])
@@ -30,35 +34,73 @@
   const MAX_TOTAL_SIZE = 1 * 1024 * 1024
   const MAX_ATTACHMENT_COUNT = 10
 
-  const resolvedDisplay = $derived.by(() => {
-    if (!resolvedAddress) return null
-    const contact = findContactByPhone(resolvedAddress)
-    return contact ? contact.name : formatPhone(resolvedAddress)
-  })
-
-  const pendingMsgs = $derived(getPendingMessages(-1))
-  const canSend = $derived((messageText.trim().length > 0 || draftAttachments.length > 0) && resolvedAddress !== null)
-
-  function handleAddressSelect(address: string): void {
-    // Check if there's an existing thread for this address
-    const existingThread = findThreadByAddress(address)
-    if (existingThread !== null) {
-      selectConversation(existingThread)
-      return
-    }
-    resolvedAddress = address
-    setComposeAddress(address)
-    // Focus the compose box after address is set
-    tick().then(() => textareaEl?.focus())
+  function recipientDisplay(address: string): string {
+    const contact = findContactByPhone(address)
+    return contact ? contact.name : formatPhone(address)
   }
 
-  function clearAddress(): void {
-    resolvedAddress = null
-    setComposeAddress('')
+  const matchedThread = $derived.by(() => {
+    if (recipients.length === 0) return null
+    if (recipients.length === 1) return findThreadByAddress(recipients[0]!)
+    return findThreadByAddressSet(recipients)
+  })
+
+  // Navigate to matched group thread (2+ recipients) automatically — unambiguous
+  $effect(() => {
+    if (matchedThread !== null && recipients.length >= 2 && !hasSent) {
+      selectConversation(matchedThread)
+    }
+  })
+
+  // Show compose when: 1 recipient no thread, OR 2+ recipients locked
+  const showCompose = $derived(
+    (recipients.length === 1 && matchedThread === null) ||
+    (recipients.length >= 2 && matchedThread === null && composeLocked),
+  )
+
+  // Show group placeholder when: 2+ recipients, no match, not locked
+  const showGroupPlaceholder = $derived(
+    recipients.length >= 2 && matchedThread === null && !composeLocked,
+  )
+
+  // Show existing-thread prompt when: 1 recipient has an existing 1:1 thread
+  const showExistingThread = $derived(
+    recipients.length === 1 && matchedThread !== null,
+  )
+
+  const pendingMsgs = $derived(getPendingMessages(-1))
+  const canSend = $derived(
+    (messageText.trim().length > 0 || draftAttachments.length > 0) &&
+    recipients.length > 0 &&
+    showCompose,
+  )
+
+  function handleAddressSelect(address: string): void {
+    if (!recipients.includes(address)) {
+      recipients = [...recipients, address]
+      if (recipients.length === 1) setComposeAddress(address)
+    }
+    // Keep autocomplete focused for adding more recipients
+    void tick().then(() => autocompleteEl?.focus())
+  }
+
+  function removeRecipient(address: string): void {
+    recipients = recipients.filter((r) => r !== address)
+    if (recipients.length === 0) {
+      setComposeAddress('')
+      composeLocked = false
+    } else if (recipients.length === 1) {
+      setComposeAddress(recipients[0]!)
+    }
+  }
+
+  function lockCompose(): void {
+    composeLocked = true
+    void tick().then(() => textareaEl?.focus())
   }
 
   async function handleSend(): Promise<void> {
-    if (!canSend || !resolvedAddress) return
+    if (!canSend) return
 
     const body = messageText.trim()
     const attachments = [...draftAttachments]
@@ -66,9 +108,16 @@
     draftAttachments = []
     sizeWarning = ''
     resetTextareaHeight()
+
     hasSent = true
 
-    void queueSendMessage(-1, resolvedAddress, body, attachments)
+    void queueSendMessage(-1, recipients, body, attachments)
+
+    // For group sends, trigger a thread-list resync so the new thread gets
+    // proper addresses before we navigate to it.
+    if (recipients.length >= 2) {
+      void window.api.invoke('sms.resync_threads', {})
+    }
 
     await tick()
     textareaEl?.focus()
@@ -144,7 +193,6 @@
     }
   }
 
-  // Listen for files dropped outside the compose area (handled by App.svelte)
   function handleExternalDrop(e: Event): void {
     const drafts = (e as CustomEvent<DraftAttachment[]>).detail
     if (drafts?.length) addDrafts(drafts)
@@ -202,14 +250,14 @@
     textareaEl.style.height = 'auto'
   }
 
-  // Post-send transition: watch for real thread appearing
+  // Post-send transition: navigate when the real thread appears with proper addresses.
+  // For 1:1 sends this fires immediately. For group sends it fires after the thread-list
+  // resync that we trigger from handleSend completes.
   $effect(() => {
-    if (hasSent && conversations.composingNew && resolvedAddress) {
-      const realThread = findThreadByAddress(resolvedAddress)
-      if (realThread !== null) {
-        clearPendingForThread(-1)
-        selectConversation(realThread)
-      }
+    if (!hasSent || !conversations.composingNew) return
+    if (matchedThread !== null) {
+      clearPendingForThread(-1)
+      selectConversation(matchedThread)
     }
   })
 </script>
@@ -217,22 +265,28 @@
 <div class="new-conversation">
   <div class="new-conversation__header">
     <span class="new-conversation__label">{t('newMessage.to')}</span>
-    {#if resolvedAddress}
-      <div class="new-conversation__resolved">
-        <span class="new-conversation__resolved-name">{resolvedDisplay}</span>
-        <button
-          class="new-conversation__resolved-clear"
-          onclick={clearAddress}
-          title={t('newMessage.changeRecipient')}
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14">
-            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
-      </div>
-    {:else}
-      <ContactAutocomplete onSelect={handleAddressSelect} />
-    {/if}
+    <div class="new-conversation__recipients">
+      {#each recipients as addr (addr)}
+        <div class="recipient-chip">
+          <span class="recipient-chip__name">{recipientDisplay(addr)}</span>
+          <button
+            class="recipient-chip__remove"
+            onclick={() => removeRecipient(addr)}
+            title="Remove"
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+      {/each}
+      <ContactAutocomplete
+        bind:this={autocompleteEl}
+        onSelect={handleAddressSelect}
+        excludeAddresses={recipients}
+        placeholder={recipients.length === 0 ? t('contacts.placeholder') : t('newMessage.addMore')}
+      />
+    </div>
   </div>
 
   <div class="new-conversation__body">
@@ -275,7 +329,34 @@
           </div>
         </div>
       {/each}
-    {:else if resolvedAddress}
+    {:else if showExistingThread}
+      <div class="new-conversation__existing">
+        <p class="new-conversation__existing-text">
+          Existing conversation with {recipientDisplay(recipients[0]!)}
+        </p>
+        <div class="new-conversation__existing-actions">
+          <button
+            class="new-conversation__goto-btn"
+            onclick={() => selectConversation(matchedThread!)}
+          >
+            Go to conversation
+          </button>
+          <span class="new-conversation__existing-hint">or add another recipient to start a group</span>
+        </div>
+      </div>
+    {:else if showGroupPlaceholder}
+      <div class="new-conversation__group-placeholder">
+        <p class="new-conversation__group-placeholder-title">New group message to:</p>
+        <ul class="new-conversation__group-list">
+          {#each recipients as addr (addr)}
+            <li>{recipientDisplay(addr)}</li>
+          {/each}
+        </ul>
+        <button class="new-conversation__start-group-btn" onclick={lockCompose}>
+          Start group chat
+        </button>
+      </div>
+    {:else if recipients.length === 1 && matchedThread === null}
       <div class="new-conversation__empty">
         <p class="new-conversation__empty-text">{t('newMessage.startNew')}</p>
       </div>
@@ -286,7 +367,7 @@
     {/if}
   </div>
 
-  {#if resolvedAddress}
+  {#if showCompose}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="compose"
@@ -396,6 +477,7 @@
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     background-color: var(--bg-secondary);
+    flex-wrap: wrap;
   }
 
   .new-conversation__label {
@@ -405,34 +487,46 @@
     flex-shrink: 0;
   }
 
-  .new-conversation__resolved {
+  .new-conversation__recipients {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    background-color: var(--bg-surface);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-md);
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 0;
   }
 
-  .new-conversation__resolved-name {
+  .recipient-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background-color: var(--accent-primary);
+    color: white;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
     font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    font-weight: var(--font-weight-medium);
+    flex-shrink: 0;
   }
 
-  .new-conversation__resolved-clear {
+  .recipient-chip__name {
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+  }
+
+  .recipient-chip__remove {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    padding: 2px;
-    border-radius: var(--radius-sm);
+    padding: 0;
     display: flex;
     align-items: center;
+    border-radius: var(--radius-full);
+    transition: color 0.1s;
   }
 
-  .new-conversation__resolved-clear:hover {
-    color: var(--text-secondary);
+  .recipient-chip__remove:hover {
+    color: white;
   }
 
   .new-conversation__body {
@@ -454,7 +548,101 @@
     font-size: var(--font-size-base);
   }
 
-  /* Pending message bubbles (same styles as MessageThread) */
+  .new-conversation__existing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: var(--space-3);
+    text-align: center;
+    padding: var(--space-8);
+  }
+
+  .new-conversation__existing-text {
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+    margin: 0;
+  }
+
+  .new-conversation__existing-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .new-conversation__goto-btn {
+    padding: var(--space-2) var(--space-6);
+    background-color: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .new-conversation__goto-btn:hover {
+    background-color: #4a7de0;
+  }
+
+  .new-conversation__existing-hint {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .new-conversation__group-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: var(--space-3);
+    padding: var(--space-8);
+    text-align: center;
+  }
+
+  .new-conversation__group-placeholder-title {
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+    margin: 0;
+  }
+
+  .new-conversation__group-list {
+    list-style: disc;
+    text-align: left;
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    padding-left: var(--space-6);
+    margin: 0;
+  }
+
+  .new-conversation__group-list li {
+    padding: var(--space-1) 0;
+  }
+
+  .new-conversation__start-group-btn {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-6);
+    background-color: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .new-conversation__start-group-btn:hover {
+    background-color: #4a7de0;
+  }
+
+  /* Pending message bubbles */
 
   .message-bubble {
     display: flex;
@@ -536,7 +724,7 @@
     color: var(--danger);
   }
 
-  /* Compose area (same styles as MessageThread) */
+  /* Compose area */
 
   .compose {
     padding: var(--space-2) var(--space-4);

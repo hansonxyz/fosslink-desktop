@@ -5,9 +5,11 @@
 
   interface Props {
     onSelect: (address: string) => void
+    excludeAddresses?: string[]
+    placeholder?: string
   }
 
-  let { onSelect }: Props = $props()
+  let { onSelect, excludeAddresses = [], placeholder }: Props = $props()
 
   let query = $state('')
   let inputEl: HTMLInputElement | undefined = $state()
@@ -28,6 +30,7 @@
       if (!contact.name.toLowerCase().includes(q)) continue
       const phones = contact.phone_numbers.split(';').filter(Boolean)
       for (const phone of phones) {
+        if (excludeAddresses.includes(phone)) continue
         matches.push({
           name: contact.name,
           phone,
@@ -95,6 +98,10 @@
   $effect(() => {
     if (inputEl) inputEl.focus()
   })
+
+  export function focus(): void {
+    inputEl?.focus()
+  }
 </script>
 
 <div class="autocomplete">
@@ -102,7 +109,7 @@
     bind:this={inputEl}
     class="autocomplete__input"
     type="text"
-    placeholder={t('contacts.placeholder')}
+    placeholder={placeholder ?? t('contacts.placeholder')}
     bind:value={query}
     onkeydown={handleKeydown}
   />

@@ -38,20 +38,25 @@ function enrichConversation(row: ConversationRow): DisplayConversation {
   }
 
   const primaryAddress = addresses[0] ?? ''
-  const contact = findContactByPhone(primaryAddress)
-  const isContactKnown = contact !== undefined
+  const primaryContact = findContactByPhone(primaryAddress)
+  // For spam filtering: known if any participant is in contacts
+  const isContactKnown = addresses.some((a) => findContactByPhone(a) !== undefined)
 
   let displayName: string
-  if (contact) {
-    displayName = contact.name
-  } else if (addresses.length > 1) {
-    displayName = addresses.map(formatPhone).join(', ')
+  if (addresses.length > 1) {
+    // Group thread: resolve each address to contact name or formatted number
+    displayName = addresses.map((a) => {
+      const c = findContactByPhone(a)
+      return c ? c.name : formatPhone(a)
+    }).join(', ')
+  } else if (primaryContact) {
+    displayName = primaryContact.name
   } else {
     displayName = formatPhone(primaryAddress)
   }
 
-  const avatarKey = contact?.name ?? primaryAddress
-  const initials = contact ? getInitials(contact.name) : '#'
+  const avatarKey = primaryContact?.name ?? primaryAddress
+  const initials = primaryContact ? getInitials(primaryContact.name) : '#'
   const color = getAvatarColor(avatarKey)
 
   // Effective unread: if we've locally read this thread at or after the latest
@@ -73,7 +78,7 @@ function enrichConversation(row: ConversationRow): DisplayConversation {
     hasOutgoing: row.has_outgoing === 1,
     avatarInitials: initials,
     avatarColor: color,
-    avatarPhoto: contact?.photo_path ? `xyzattachment://contact-photo/${contact.uid}` : null,
+    avatarPhoto: primaryContact?.photo_path ? `xyzattachment://contact-photo/${primaryContact.uid}` : null,
   }
 }
 
@@ -244,7 +249,32 @@ export function findThreadByAddress(address: string): number | null {
         ? row.addresses.split(',').map((a) => a.trim())
         : [row.addresses]
     }
-    if (addresses.some((a) => normalizePhone(a) === normalized)) {
+    if (addresses.length === 1 && normalizePhone(addresses[0]!) === normalized) {
+      return row.thread_id
+    }
+  }
+  return null
+}
+
+/**
+ * Find a thread ID whose address set exactly matches the given addresses.
+ * Order-independent, normalized comparison. Returns thread_id or null.
+ */
+export function findThreadByAddressSet(addresses: string[]): number | null {
+  const normalizedSet = new Set(addresses.map(normalizePhone))
+  for (const row of conversations.raw) {
+    let rowAddresses: string[]
+    try {
+      const parsed = JSON.parse(row.addresses) as unknown
+      rowAddresses = Array.isArray(parsed) ? (parsed as string[]) : [row.addresses]
+    } catch {
+      rowAddresses = row.addresses.includes(',')
+        ? row.addresses.split(',').map((a) => a.trim())
+        : [row.addresses]
+    }
+    if (rowAddresses.length !== normalizedSet.size) continue
+    const rowNormalized = rowAddresses.map(normalizePhone)
+    if (rowNormalized.every((a) => normalizedSet.has(a))) {
       return row.thread_id
     }
   }

@@ -246,7 +246,12 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
   });
 
   methods.set('sms.send', async (params) => {
-    const address = params?.['address'] as string | undefined;
+    // Accept recipients array (preferred) or single address (backward compat)
+    const recipientsParam = params?.['recipients'] as string[] | undefined;
+    const addressParam = params?.['address'] as string | undefined;
+    const recipients = recipientsParam?.length ? recipientsParam
+      : addressParam ? [addressParam]
+      : [];
     const body = params?.['body'] as string | undefined;
     const attachmentPaths = params?.['attachments'] as Array<{
       filePath: string;
@@ -254,8 +259,8 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
       mimeType: string;
     }> | undefined;
 
-    if (!address) {
-      throw new Error('Missing required parameter: address');
+    if (recipients.length === 0) {
+      throw new Error('Missing required parameter: recipients');
     }
     if (!body && (!attachmentPaths || attachmentPaths.length === 0)) {
       throw new Error('Message must have body text or attachments');
@@ -275,7 +280,7 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
       );
     }
 
-    const queueId = daemon.getSmsHandler().queueMessage(address, body ?? '', outgoingAttachments);
+    const queueId = daemon.getSmsHandler().queueMessage(recipients, body ?? '', outgoingAttachments);
     return { queueId };
   });
 
@@ -703,6 +708,11 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
 
   methods.set('sms.resync_all', async () => {
     daemon.resync();
+    return { ok: true };
+  });
+
+  methods.set('sms.resync_threads', async () => {
+    daemon.getSyncOrchestrator()?.requestThreadListResync();
     return { ok: true };
   });
 

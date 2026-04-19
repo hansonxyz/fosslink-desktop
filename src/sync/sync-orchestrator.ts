@@ -162,6 +162,8 @@ export class SyncOrchestrator {
 
   /** Called when the phone disconnects. */
   onDisconnected(): void {
+    const alreadyDisconnected = this._state === 'disconnected';
+
     this.aborted = true;
     this.queue.length = 0;
     this.currentOp = null;
@@ -172,7 +174,10 @@ export class SyncOrchestrator {
     this.eventListener.setSyncActive(false);
     this.setState('disconnected');
 
-    debugConsole.narrative('Phone disconnected');
+    // Suppress duplicate log when cleanupConnection is called during reconnect
+    if (!alreadyDisconnected) {
+      debugConsole.narrative('Phone disconnected');
+    }
   }
 
   /** Called when the user opens a thread. */
@@ -241,6 +246,22 @@ export class SyncOrchestrator {
         this.aborted = true;
       }
     }
+  }
+
+  /**
+   * Request an immediate thread-list resync. Used after sending a group MMS
+   * so the new thread's addresses get populated before the UI navigates.
+   */
+  requestThreadListResync(): void {
+    if (this._state === 'disconnected') return;
+    this.insertPriorityOp({
+      name: 'thread_list_resync',
+      showSyncing: false,
+      run: async () => {
+        await threadListSync(this.queryClient, this.db);
+        this.notify('sms.conversations_updated', {});
+      },
+    });
   }
 
   /** Full resync: wipe state and restart. */

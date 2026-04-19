@@ -38,6 +38,9 @@ interface PendingQuery {
 
 type SendFunction = (msg: ProtocolMessage) => void;
 
+/** Milliseconds with no page received before the query is considered stalled. */
+const PAGE_INACTIVITY_TIMEOUT_MS = 15_000;
+
 export class QueryClient {
   private sendMessage: SendFunction | null = null;
   private active: PendingQuery | null = null;
@@ -47,6 +50,7 @@ export class QueryClient {
     resolve: (data: unknown[]) => void;
     reject: (err: Error) => void;
   }> = [];
+  private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Set the function used to send messages to the phone.
@@ -62,6 +66,7 @@ export class QueryClient {
    */
   clearSendFunction(): void {
     this.sendMessage = null;
+    this.clearInactivityTimer();
 
     if (this.active) {
       this.active.reject(new Error('Disconnected'));
@@ -176,6 +181,9 @@ export class QueryClient {
     // Check if query is complete
     if (q.totalPages !== null && q.receivedCount >= q.totalPages) {
       this.completeQuery(q);
+    } else {
+      // Still waiting for more pages — reset inactivity timer
+      this.resetInactivityTimer();
     }
   }
 
@@ -218,9 +226,13 @@ export class QueryClient {
       type: MSG_QUERY,
       body: { queryId, resource, params },
     });
+
+    this.resetInactivityTimer();
   }
 
   private completeQuery(q: PendingQuery): void {
+    this.clearInactivityTimer();
+
     // Concatenate pages in order
     const result: unknown[] = [];
     for (let i = 1; i <= (q.totalPages ?? 0); i++) {
@@ -240,6 +252,31 @@ export class QueryClient {
 
     // Dispatch next queued query
     this.drainQueue();
+  }
+
+  private clearInactivityTimer(): void {
+    if (this.inactivityTimer !== null) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
+    }
+  }
+
+  private resetInactivityTimer(): void {
+    this.clearInactivityTimer();
+    const q = this.active;
+    if (!q) return;
+
+    this.inactivityTimer = setTimeout(() => {
+      if (this.active !== q) return;
+      const received = q.receivedCount;
+      const total = q.totalPages ?? '?';
+      debugConsole.log('transport', 'query',
+        `Query ${q.resource} stalled — no page for ${PAGE_INACTIVITY_TIMEOUT_MS / 1000}s ` +
+        `(received ${received}/${total} pages), timing out`);
+      this.active.reject(new Error(`Query timed out: ${q.resource} (${received}/${total} pages)`));
+      this.active = null;
+      this.drainQueue();
+    }, PAGE_INACTIVITY_TIMEOUT_MS);
   }
 
   private drainQueue(): void {

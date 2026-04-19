@@ -14,9 +14,10 @@
     onClose: () => void
     onDial?: (phoneNumber: string) => void
     onViewMedia?: () => void
+    onSendMessage?: () => void
   }
 
-  let { contact, avatarPhoto, threadAddresses, threadId, onClose, onDial, onViewMedia }: Props = $props()
+  let { contact, avatarPhoto, threadAddresses, threadId, onClose, onDial, onViewMedia, onSendMessage }: Props = $props()
 
   const filterAddress = $derived(threadAddresses?.[0] ?? '')
   const isCurrentlyFiltered = $derived(filterAddress ? filterList.isFiltered(filterAddress) : false)
@@ -228,6 +229,17 @@
         <p class="dialog__account">
           {formatAccountType(contact.account_type)}{#if contact.account_name} · {contact.account_name}{/if}
         </p>
+      {/if}
+
+      <!-- Send message -->
+      {#if onSendMessage}
+        <div class="dialog__divider"></div>
+        <button class="dialog__media-btn" onclick={onSendMessage}>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+          </svg>
+          Send Message
+        </button>
       {/if}
 
       <!-- View media -->

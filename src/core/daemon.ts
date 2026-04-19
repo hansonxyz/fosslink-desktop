@@ -1140,7 +1140,9 @@ export class Daemon {
   setNotifyFunction(fn: (method: string, params: Record<string, unknown>) => void): void {
     this.notifyFn = fn;
     if (this.databaseService && this.queryClient) {
-      this.eventListener = new EventListener(this.databaseService, fn);
+      this.eventListener = new EventListener(this.databaseService, fn, () => {
+        this.syncOrchestrator?.requestThreadListResync();
+      });
       this.syncOrchestrator = new SyncOrchestrator(
         this.queryClient,
         this.eventListener,

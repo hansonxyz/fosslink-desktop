@@ -17,7 +17,7 @@ export interface PendingMessage {
   queueId: string
   daemonQueueId: string | null
   threadId: number
-  address: string
+  recipients: string[]
   body: string
   attachments: DraftAttachment[]
   date: number
@@ -64,18 +64,23 @@ export function getPendingMessages(threadId: number): PendingMessage[] {
  */
 export async function sendMessage(
   threadId: number,
-  address: string,
+  recipients: string[],
   body: string,
   attachments: DraftAttachment[] = [],
 ): Promise<void> {
   const tempId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  // Spread to plain arrays — Svelte 5 $state arrays are Proxy objects
+  // that can't be cloned by Electron's structured clone algorithm.
+  const plainRecipients = [...recipients]
+  const plainAttachments = [...attachments]
+
   const msg: PendingMessage = {
     queueId: tempId,
     daemonQueueId: null,
     threadId,
-    address,
+    recipients: plainRecipients,
     body,
-    attachments,
+    attachments: plainAttachments,
     date: Date.now(),
     status: 'sending',
   }
@@ -84,9 +89,9 @@ export async function sendMessage(
   pending.push(msg)
 
   try {
-    const ipcParams: Record<string, unknown> = { address, body }
-    if (attachments.length > 0) {
-      ipcParams['attachments'] = attachments.map((a) => ({
+    const ipcParams: Record<string, unknown> = { recipients: plainRecipients, body }
+    if (plainAttachments.length > 0) {
+      ipcParams['attachments'] = plainAttachments.map((a) => ({
         filePath: a.filePath,
         fileName: a.fileName,
         mimeType: a.mimeType,
@@ -223,7 +228,7 @@ export async function retrySend(queueId: string): Promise<void> {
   if (idx === -1) return
 
   const msg = pending[idx]!
-  const { threadId, address, body, attachments, daemonQueueId } = msg
+  const { threadId, recipients, body, attachments, daemonQueueId } = msg
 
   // Clean up old entry (don't clean up drafts — we're reusing them)
   pending.splice(idx, 1)
@@ -232,7 +237,7 @@ export async function retrySend(queueId: string): Promise<void> {
   }
 
   // Re-queue as a new send with the same attachments
-  await sendMessage(threadId, address, body, attachments)
+  await sendMessage(threadId, recipients, body, attachments)
 }
 
 /**

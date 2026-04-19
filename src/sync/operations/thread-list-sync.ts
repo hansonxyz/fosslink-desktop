@@ -15,10 +15,24 @@ import { debugConsole } from '../debug-console.js';
 
 interface ThreadFromPhone {
   threadId: number;
-  addresses: string;
+  addresses: string | string[];  // phone sends JSONArray (string[]) after v1.5.0 Android
   snippet: string;
   snippetDate: number;
   unreadCount: number;
+}
+
+/** Normalize phone addresses to a JSON array string for DB storage. */
+function normalizeAddresses(raw: string | string[]): string {
+  if (Array.isArray(raw)) {
+    return JSON.stringify(raw);
+  }
+  // Already a JSON array string? Parse and re-serialize to normalize.
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) return JSON.stringify(parsed);
+  } catch { /* not JSON */ }
+  // Plain string (single number) — wrap in array
+  return JSON.stringify([raw]);
 }
 
 export interface ThreadListSyncResult {
@@ -51,7 +65,7 @@ export async function threadListSync(
       // New thread
       db.upsertConversation({
         thread_id: thread.threadId,
-        addresses: thread.addresses,
+        addresses: normalizeAddresses(thread.addresses),
         snippet: thread.snippet,
         date: thread.snippetDate,
         read: thread.unreadCount === 0 ? 1 : 0,
@@ -61,16 +75,23 @@ export async function threadListSync(
       });
       added++;
     } else if (thread.snippetDate > existing.date) {
-      // Phone has newer data
+      // Phone has newer data — update everything
       db.upsertConversation({
         thread_id: thread.threadId,
-        addresses: thread.addresses,
+        addresses: normalizeAddresses(thread.addresses),
         snippet: thread.snippet,
         date: thread.snippetDate,
         read: thread.unreadCount === 0 ? 1 : 0,
         unread_count: thread.unreadCount,
         locally_read_at: existing.locally_read_at,
         has_outgoing: existing.has_outgoing,
+      });
+      updated++;
+    } else if (normalizeAddresses(thread.addresses) !== existing.addresses) {
+      // Addresses corrected on phone side — update addresses only, preserve local state
+      db.upsertConversation({
+        ...existing,
+        addresses: normalizeAddresses(thread.addresses),
       });
       updated++;
     }

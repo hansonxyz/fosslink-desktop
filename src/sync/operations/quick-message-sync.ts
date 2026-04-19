@@ -90,16 +90,20 @@ export async function quickMessageSync(
     synced++;
   }
 
-  // Update conversation snippet if we found newer messages
+  // Update conversation snippet and has_outgoing if we found newer messages
   if (messages.length > 0) {
     const newest = messages[messages.length - 1]!;
     const convNow = db.getConversation(threadId);
+    const hasOutgoing = messages.some((m) => m.type === 2) ? 1 : 0;
     if (convNow && newest.date >= convNow.date) {
       db.upsertConversation({
         ...convNow,
-        snippet: newest.body ?? '',
+        snippet: newest.body ?? (newest.attachments?.length ? '[Attachment]' : ''),
         date: newest.date,
+        has_outgoing: Math.max(convNow.has_outgoing, hasOutgoing),
       });
+    } else if (convNow && hasOutgoing && !convNow.has_outgoing) {
+      db.upsertConversation({ ...convNow, has_outgoing: 1 });
     }
   }
 

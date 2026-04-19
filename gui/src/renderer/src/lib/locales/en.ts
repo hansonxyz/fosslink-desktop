@@ -110,6 +110,7 @@ export const en: Record<string, string> = {
   'newMessage.changeRecipient': 'Change recipient',
   'newMessage.startNew': 'Start a new conversation',
   'newMessage.enterContact': 'Enter a contact name or phone number above',
+  'newMessage.addMore': 'Add another recipient...',
 
   // Contact autocomplete
   'contacts.placeholder': 'Type a name or phone number...',

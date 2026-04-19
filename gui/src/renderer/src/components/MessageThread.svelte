@@ -16,7 +16,9 @@
   import MessageBubble from './MessageBubble.svelte'
   import Avatar from './Avatar.svelte'
   import ContactDetail from './ContactDetail.svelte'
+  import GroupDetail from './GroupDetail.svelte'
   import { findContactByPhone } from '../stores/contacts.svelte'
+  import { findThreadByAddress, selectConversation, startCompose, setComposeAddress } from '../stores/conversations.svelte'
   import { getInitials, getAvatarColor } from '../lib/avatar'
   import { formatPhone } from '../lib/phone'
   import DialConfirmDialog from './DialConfirmDialog.svelte'
@@ -29,6 +31,10 @@
 
   // Contact detail popup
   let showContactPopup = $state(false)
+  // Group detail popup
+  let showGroupPopup = $state(false)
+  // Address of a group member whose individual contact is being viewed
+  let memberContactAddress = $state<string | null>(null)
 
   // Dial confirmation
   let dialNumber = $state<string | null>(null)
@@ -153,8 +159,8 @@
       textareaEl?.focus()
       return
     }
-    const address = selectedConversation.addresses[0]
-    if (!address) {
+    const recipients = selectedConversation.addresses
+    if (recipients.length === 0) {
       textareaEl?.focus()
       return
     }
@@ -172,7 +178,7 @@
     resetTextareaHeight()
 
     // Fire and forget — the send queue handles status tracking
-    void queueSendMessage(threadId, address, body, attachments)
+    void queueSendMessage(threadId, recipients, body, attachments)
 
     await tick()
     textareaEl?.focus()
@@ -180,8 +186,8 @@
 
   function handleReact(messageId: number, messageBody: string, verb: string): void {
     if (!selectedConversation) return
-    const address = selectedConversation.addresses[0]
-    if (!address) return
+    const recipients = selectedConversation.addresses
+    if (recipients.length === 0) return
 
     // Truncate to ~50 chars like iPhone does for long messages
     let quoted = messageBody
@@ -196,7 +202,7 @@
     const emoji = TAPBACK_REACTIONS.find((r) => r.verb === verb)?.emoji ?? '\u{1F44D}'
     addPendingReaction(messageId, emoji)
 
-    void queueSendMessage(threadId, address, tapbackBody, [])
+    void queueSendMessage(threadId, recipients, tapbackBody, [])
   }
 
   function classifyMime(mimeType: string): 'image' | 'video' | 'audio' | 'other' {
@@ -692,7 +698,7 @@
   {#if selectedConversation}
     <div class="message-thread__header">
       {#if headerContact}
-        <button class="message-thread__header-info message-thread__header-info--clickable" onclick={() => { showContactPopup = true }}>
+        <button class="message-thread__header-info message-thread__header-info--clickable" onclick={() => { if (selectedConversation.addresses.length > 1) { showGroupPopup = true } else { showContactPopup = true } }}>
           <Avatar
             initials={selectedConversation.avatarInitials}
             color={selectedConversation.avatarColor}
@@ -707,7 +713,7 @@
           </div>
         </button>
       {:else}
-        <button class="message-thread__header-info message-thread__header-info--clickable" onclick={() => { showContactPopup = true }}>
+        <button class="message-thread__header-info message-thread__header-info--clickable" onclick={() => { if (selectedConversation.addresses.length > 1) { showGroupPopup = true } else { showContactPopup = true } }}>
           <Avatar
             initials={selectedConversation.avatarInitials}
             color={selectedConversation.avatarColor}
@@ -862,35 +868,78 @@
     {/if}
   {/if}
 
+  {#if showGroupPopup && selectedConversation}
+    <GroupDetail
+      addresses={selectedConversation.addresses}
+      threadId={selectedConversation.threadId}
+      onClose={() => { showGroupPopup = false }}
+      onViewMedia={() => {
+        showGroupPopup = false
+        if (selectedConversation) {
+          void loadThreadMedia(selectedConversation.threadId, selectedConversation.displayName)
+          window.dispatchEvent(new Event('fosslink:open-gallery'))
+        }
+      }}
+      onMemberClick={(addr) => {
+        showGroupPopup = false
+        memberContactAddress = addr
+        showContactPopup = true
+      }}
+    />
+  {/if}
+
   {#if showContactPopup && selectedConversation}
-    {@const contactForPopup = headerContact ?? {
-      uid: '',
-      name: selectedConversation.displayName,
-      phone_numbers: JSON.stringify(selectedConversation.addresses),
-      photo_path: null,
-      photo_mime: null,
-      emails: null,
-      addresses: null,
-      organization: null,
-      notes: null,
-      birthday: null,
-      nickname: null,
-      account_type: null,
-      account_name: null,
-      timestamp: 0,
-    } satisfies ContactRow}
+    {@const memberAddr = memberContactAddress}
+    {@const memberContact = memberAddr ? findContactByPhone(memberAddr) : null}
+    {@const memberThreadId = memberAddr ? findThreadByAddress(memberAddr) : null}
+    {@const contactForPopup = memberAddr
+      ? (memberContact ?? {
+          uid: '',
+          name: formatPhone(memberAddr),
+          phone_numbers: JSON.stringify([memberAddr]),
+          photo_path: null, photo_mime: null, emails: null, addresses: null,
+          organization: null, notes: null, birthday: null, nickname: null,
+          account_type: null, account_name: null, timestamp: 0,
+        } satisfies ContactRow)
+      : (headerContact ?? {
+          uid: '',
+          name: selectedConversation.displayName,
+          phone_numbers: JSON.stringify(selectedConversation.addresses),
+          photo_path: null, photo_mime: null, emails: null, addresses: null,
+          organization: null, notes: null, birthday: null, nickname: null,
+          account_type: null, account_name: null, timestamp: 0,
+        } satisfies ContactRow)}
+    {@const photoForPopup = memberContact?.photo_path
+      ? `xyzattachment://contact-photo/${memberContact.uid}`
+      : memberAddr ? null : (selectedConversation.avatarPhoto ?? null)}
     <ContactDetail
       contact={contactForPopup}
-      avatarPhoto={selectedConversation.avatarPhoto ?? null}
-      threadAddresses={selectedConversation.addresses}
-      threadId={selectedConversation.threadId}
-      onClose={() => { showContactPopup = false }}
-      onDial={(num) => { showContactPopup = false; promptDial(num) }}
-      onViewMedia={() => {
+      avatarPhoto={photoForPopup}
+      threadAddresses={memberAddr ? [memberAddr] : selectedConversation.addresses}
+      threadId={memberThreadId ?? selectedConversation.threadId}
+      onClose={() => { showContactPopup = false; memberContactAddress = null }}
+      onDial={(num) => { showContactPopup = false; memberContactAddress = null; promptDial(num) }}
+      onSendMessage={memberAddr ? () => {
+        showContactPopup = false
+        memberContactAddress = null
+        if (memberThreadId !== null) {
+          selectConversation(memberThreadId)
+        } else {
+          startCompose()
+          setComposeAddress(memberAddr)
+          selectConversation(null)
+        }
+      } : undefined}
+      onViewMedia={memberAddr && memberThreadId !== null ? () => {
+        showContactPopup = false
+        memberContactAddress = null
+        const contact = findContactByPhone(memberAddr)
+        void loadThreadMedia(memberThreadId, contact?.name ?? formatPhone(memberAddr))
+        window.dispatchEvent(new Event('fosslink:open-gallery'))
+      } : memberAddr ? undefined : () => {
         showContactPopup = false
         if (selectedConversation) {
           void loadThreadMedia(selectedConversation.threadId, selectedConversation.displayName)
-          // Dispatch event to open gallery in App.svelte
           window.dispatchEvent(new Event('fosslink:open-gallery'))
         }
       }}

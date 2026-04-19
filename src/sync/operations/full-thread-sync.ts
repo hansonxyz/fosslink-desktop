@@ -121,17 +121,19 @@ export async function fullThreadSync(
   // Mark thread as fully synced
   db.markThreadFullySynced(threadId);
 
-  // Update conversation snippet with the actual newest message in the DB
+  // Update conversation snippet and has_outgoing with the actual newest message in the DB
   // (may be from a real-time event that arrived after the sync query)
   const allMessages = db.getThreadMessages(threadId);
   if (allMessages.length > 0) {
     const newest = allMessages[allMessages.length - 1]!;
     const conv = db.getConversation(threadId);
-    if (conv && newest.date >= conv.date) {
+    const hasOutgoing = allMessages.some((m) => m.type === 2) ? 1 : 0;
+    if (conv) {
       db.upsertConversation({
         ...conv,
-        snippet: newest.body ?? '',
-        date: newest.date,
+        snippet: newest.date >= conv.date ? (newest.body ?? '') : conv.snippet,
+        date: Math.max(newest.date, conv.date),
+        has_outgoing: Math.max(conv.has_outgoing, hasOutgoing),
       });
     }
   }

@@ -40,12 +40,14 @@ interface MessageFromEvent {
 export class EventListener {
   private db: DatabaseService;
   private notify: NotifyCallback;
+  private onNewThread: (() => void) | undefined;
   private flaggedThreads = new Set<number>();
   private syncActive = false;
 
-  constructor(db: DatabaseService, notify: NotifyCallback) {
+  constructor(db: DatabaseService, notify: NotifyCallback, onNewThread?: () => void) {
     this.db = db;
     this.notify = notify;
+    this.onNewThread = onNewThread;
   }
 
   /** Mark sync as active — events will flag threads for post-sync resync. */
@@ -93,6 +95,7 @@ export class EventListener {
     if (!messages || messages.length === 0) return;
 
     const threadIds = new Set<number>();
+    let needsAddressResync = false;
 
     for (const m of messages) {
       const address = m.addresses?.[0]?.address ?? '';
@@ -129,6 +132,12 @@ export class EventListener {
         }
       }
 
+      // If this is a sent group message (multiple addresses), we need a thread-list
+      // resync to get canonical addresses — events only carry the first address.
+      if (eventType === 'sent' && (m.addresses?.length ?? 0) > 1) {
+        needsAddressResync = true;
+      }
+
       // Update conversation snippet if this message is newer
       const conv = this.db.getConversation(m.thread_id);
       if (conv) {
@@ -154,11 +163,12 @@ export class EventListener {
           full_sync_complete: 0,
           full_sync_date: 0,
         });
+        needsAddressResync = true;
       }
     }
 
     debugConsole.log('query', 'event',
-      `Event: ${messages.length} ${eventType} message(s) in thread(s) ${[...threadIds].join(', ')}`);
+      `Event: ${messages.length} ${eventType} message(s) in thread(s) ${[...threadIds].join(', ')}${needsAddressResync ? ' (resync needed)' : ''}`);
 
     // Flag threads for resync if sync is active
     if (this.syncActive) {
@@ -172,6 +182,13 @@ export class EventListener {
       this.notify('sms.messages', { threadId, newestDate: messages[messages.length - 1]?.date });
     }
     this.notify('sms.conversations_updated', {});
+
+    // If a new thread was created or a sent group message arrived, trigger a
+    // thread-list resync so canonical addresses are populated. (Events only carry
+    // the first MMS address; canonical addresses come from threads.list.)
+    if (needsAddressResync) {
+      this.onNewThread?.();
+    }
   }
 
   private handleDeleted(msg: ProtocolMessage): void {

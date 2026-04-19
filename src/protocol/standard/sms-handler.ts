@@ -83,7 +83,7 @@ export interface OutgoingAttachment {
 
 interface QueuedSend {
   queueId: string;
-  address: string;
+  recipients: string[];
   body: string;
   attachments: OutgoingAttachment[];
   queuedAt: number;
@@ -890,8 +890,10 @@ export class SmsHandler {
    * otherwise waits for the next connection. Times out after 2 minutes.
    * Returns a queueId for tracking.
    */
-  queueMessage(address: string, body: string, attachments: OutgoingAttachment[] = []): string {
+  queueMessage(recipients: string | string[], body: string, attachments: OutgoingAttachment[] = []): string {
+    const recipientList = Array.isArray(recipients) ? recipients : [recipients];
     const queueId = `send_${++this.sendQueueCounter}_${Date.now()}`;
+    const address = recipientList[0] ?? '';
 
     const timeout = setTimeout(() => {
       if (this.sendQueue.has(queueId)) {
@@ -901,7 +903,7 @@ export class SmsHandler {
       }
     }, 120_000); // 2 minutes
 
-    this.sendQueue.set(queueId, { queueId, address, body, attachments, queuedAt: Date.now(), timeout });
+    this.sendQueue.set(queueId, { queueId, recipients: recipientList, body, attachments, queuedAt: Date.now(), timeout });
     this.logger.info('protocol.sms', 'Message queued', { queueId, address, attachmentCount: String(attachments.length) });
 
     // Try to send immediately
@@ -917,7 +919,7 @@ export class SmsHandler {
     if (!entry) return false;
     clearTimeout(entry.timeout);
     this.sendQueue.delete(queueId);
-    this.logger.info('protocol.sms', 'Send cancelled', { queueId, address: entry.address });
+    this.logger.info('protocol.sms', 'Send cancelled', { queueId, recipients: entry.recipients });
     return true;
   }
 
@@ -948,9 +950,9 @@ export class SmsHandler {
     const packetBody: Record<string, unknown> = {
       sendSms: true,
       queueId,
-      phoneNumber: entry.address,
+      phoneNumber: entry.recipients[0] ?? '',  // backward compat for older Android
+      phoneNumbers: entry.recipients,            // preferred: full recipients list
       messageBody: entry.body,
-      addresses: [{ address: entry.address }],
     };
 
     if (entry.attachments.length > 0) {
@@ -959,10 +961,10 @@ export class SmsHandler {
 
     conn.send(MSG_SMS_SEND, packetBody);
 
-    const isMms = entry.attachments.length > 0;
+    const isMms = entry.attachments.length > 0 || entry.recipients.length > 1;
     this.logger.info('protocol.sms', isMms ? 'MMS dispatched to phone' : 'SMS dispatched to phone', {
       queueId,
-      address: entry.address,
+      recipients: entry.recipients,
       attachmentCount: String(entry.attachments.length),
     });
     // Don't fire 'sent' yet — wait for phone's fosslink.sms.send_status response.
@@ -994,10 +996,10 @@ export class SmsHandler {
     this.sendQueue.delete(queueId);
 
     if (status === 'sent') {
-      this.logger.info('protocol.sms', 'Phone confirmed SMS sent', { queueId, address: entry.address });
+      this.logger.info('protocol.sms', 'Phone confirmed SMS sent', { queueId, recipients: entry.recipients });
       this.fireSendStatus(queueId, 'sent');
     } else {
-      this.logger.warn('protocol.sms', 'Phone reported SMS failed', { queueId, address: entry.address, error: error ?? 'unknown' });
+      this.logger.warn('protocol.sms', 'Phone reported SMS failed', { queueId, recipients: entry.recipients, error: error ?? 'unknown' });
       this.fireSendStatus(queueId, 'failed');
     }
   }
