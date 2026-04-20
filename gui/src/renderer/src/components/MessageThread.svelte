@@ -26,6 +26,7 @@
   import { t } from '../stores/i18n.svelte'
   import { scrollState } from '../stores/scroll.svelte'
   import { settings } from '../stores/settings.svelte'
+  import { formatTimestampBadge, isDifferentDay, TIMESTAMP_GAP_MS } from '../lib/message-format'
   import { tick } from 'svelte'
   import 'emoji-picker-element'
 
@@ -153,6 +154,35 @@
       ? getPendingMessages(conversations.selectedThreadId).filter((m) => !parseTapback(m.body))
       : [],
   )
+
+  // Pending messages enriched with day/time separator info, continuing from
+  // the last synced message in the thread. Matches the logic in
+  // messages.svelte.ts so a pending bubble sent after midnight gets a
+  // "Today, X:XX PM" separator above it.
+  const pendingWithSeparators = $derived.by(() => {
+    const pmsgs = pendingMsgs
+    if (pmsgs.length === 0) return []
+
+    const realMsgs = displayMessages.current
+    let prevDate = realMsgs.length > 0 ? realMsgs[realMsgs.length - 1]!.date : 0
+    let lastTimestampDate = 0
+    for (let i = realMsgs.length - 1; i >= 0; i--) {
+      if (realMsgs[i]!.showTimestamp) {
+        lastTimestampDate = realMsgs[i]!.date
+        break
+      }
+    }
+
+    return pmsgs.map((pmsg) => {
+      const dayChange = prevDate === 0 || isDifferentDay(prevDate, pmsg.date)
+      const gap = pmsg.date - lastTimestampDate
+      const showTimestamp = dayChange || gap >= TIMESTAMP_GAP_MS
+      const timestampLabel = showTimestamp ? formatTimestampBadge(pmsg.date, dayChange) : ''
+      if (showTimestamp) lastTimestampDate = pmsg.date
+      prevDate = pmsg.date
+      return { pmsg, showTimestamp, timestampLabel }
+    })
+  })
 
   async function handleSend(): Promise<void> {
     if (!canSend || !selectedConversation) {
@@ -799,7 +829,12 @@
         <MessageBubble message={msg} onReact={handleReact} />
       {/each}
       <div style:height="{visible.bottomPad}px"></div>
-      {#each pendingMsgs as pmsg (pmsg.queueId)}
+      {#each pendingWithSeparators as { pmsg, showTimestamp, timestampLabel } (pmsg.queueId)}
+        {#if showTimestamp}
+          <div class="message-thread__timestamp">
+            <span class="message-thread__timestamp-label">{timestampLabel}</span>
+          </div>
+        {/if}
         <div class="message-bubble message-bubble--sent">
           <div class="message-bubble__content message-bubble__content--pending">
             {#if pmsg.attachments.length > 0}
