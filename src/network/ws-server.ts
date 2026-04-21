@@ -47,6 +47,15 @@ const IDENTITY_TIMEOUT = 10000;
 /** How often to ping connected clients (ms) */
 const PING_INTERVAL_MS = 30_000;
 
+/** How often to check for system-sleep drift (ms). Short so we catch resume
+ *  within ~10s and reconnect promptly. */
+const SLEEP_CHECK_INTERVAL_MS = 10_000;
+
+/** If the sleep-detection tick fires more than this late, assume the system
+ *  was asleep and nuke all connections so reconnect can re-establish fresh
+ *  ones. Set to 2 min so normal event-loop jitter doesn't trigger it. */
+const SLEEP_DETECTION_THRESHOLD_MS = 2 * 60_000;
+
 export class WsServer {
   private httpsServer: https.Server | undefined;
   private wss: WSServer | undefined;
@@ -57,6 +66,8 @@ export class WsServer {
   private logger: Logger;
   private port = 0;
   private pingTimer: ReturnType<typeof setInterval> | undefined;
+  private sleepCheckTimer: ReturnType<typeof setInterval> | undefined;
+  private lastSleepCheckAt = 0;
   private alive = new Set<WebSocket>();
   private lastPongTime = new Map<WebSocket, number>();
 
@@ -104,9 +115,19 @@ export class WsServer {
       });
     });
 
+    // Sleep detection: check wall-clock drift since the last sleep check.
+    // Called from both the sleep-check timer (every 10s) and at the top of
+    // the ping timer, so whichever fires first after a resume catches the
+    // drift before we send pings and get a false "alive" response.
+    this.lastSleepCheckAt = Date.now();
+
     // Ping/pong heartbeat to detect stale connections (e.g. after OS standby/resume)
     const STALE_THRESHOLD = PING_INTERVAL_MS * 3; // 90s without pong = definitely stale
     this.pingTimer = setInterval(() => {
+      // Race guard: if the system was just asleep, nuke connections before
+      // pinging — otherwise a fresh pong could falsely mark them alive.
+      if (this.checkSleepDrift()) return;
+
       const now = Date.now();
       for (const [, conn] of this.connections) {
         // Check timestamp-based staleness (covers standby where timers didn't fire)
@@ -133,6 +154,32 @@ export class WsServer {
         conn.ws.ping();
       }
     }, PING_INTERVAL_MS);
+
+    this.sleepCheckTimer = setInterval(() => {
+      this.checkSleepDrift();
+    }, SLEEP_CHECK_INTERVAL_MS);
+  }
+
+  /**
+   * Check wall-clock drift since the last sleep check. If greater than the
+   * threshold, the system was asleep — terminate all connections so reconnect
+   * establishes fresh ones. Returns true if sleep was detected.
+   */
+  private checkSleepDrift(): boolean {
+    const now = Date.now();
+    const drift = now - this.lastSleepCheckAt;
+    this.lastSleepCheckAt = now;
+    if (drift > SLEEP_DETECTION_THRESHOLD_MS && this.connections.size > 0) {
+      this.logger.info('network.ws', 'System sleep detected, terminating all connections', {
+        driftSeconds: String(Math.round(drift / 1000)),
+        connectionCount: String(this.connections.size),
+      });
+      for (const [, conn] of this.connections) {
+        conn.ws.terminate();
+      }
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -142,6 +189,10 @@ export class WsServer {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = undefined;
+    }
+    if (this.sleepCheckTimer) {
+      clearInterval(this.sleepCheckTimer);
+      this.sleepCheckTimer = undefined;
     }
     this.alive.clear();
     this.lastPongTime.clear();
