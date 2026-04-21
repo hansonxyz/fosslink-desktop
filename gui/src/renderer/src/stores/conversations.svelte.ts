@@ -37,6 +37,19 @@ function enrichConversation(row: ConversationRow): DisplayConversation {
       : [row.addresses]
   }
 
+  // Dedupe addresses that resolve to the same contact (Android sometimes
+  // stores multiple canonical_address rows for the same person when their
+  // number arrived in different formats). Fall back to normalized-digits
+  // for addresses that don't match any contact.
+  const seenKeys = new Set<string>()
+  addresses = addresses.filter((a) => {
+    const contact = findContactByPhone(a)
+    const key = contact ? `uid:${contact.uid}` : `num:${normalizePhone(a)}`
+    if (seenKeys.has(key)) return false
+    seenKeys.add(key)
+    return true
+  })
+
   const primaryAddress = addresses[0] ?? ''
   const primaryContact = findContactByPhone(primaryAddress)
   // For spam filtering: known if any participant is in contacts

@@ -21,18 +21,40 @@ interface ThreadFromPhone {
   unreadCount: number;
 }
 
+/** Phone-number key for deduplication: last 10 digits (handles +1/1- prefix
+ *  variants), or all digits if shorter. */
+function phoneKey(phone: string): string {
+  const digits = phone.replace(/[^\d]/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+/** Dedupe addresses that refer to the same person in different formats
+ *  (e.g. "5551234567", "+15551234567", "(555) 123-4567"). Keeps the first
+ *  occurrence of each normalized number. */
+function dedupeAddresses(addresses: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const addr of addresses) {
+    const key = phoneKey(addr);
+    if (key === '' || seen.has(key)) continue;
+    seen.add(key);
+    result.push(addr);
+  }
+  return result;
+}
+
 /** Normalize phone addresses to a JSON array string for DB storage. */
 function normalizeAddresses(raw: string | string[]): string {
+  let arr: string[];
   if (Array.isArray(raw)) {
-    return JSON.stringify(raw);
+    arr = raw;
+  } else {
+    // Already a JSON array string? Parse.
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { /* not JSON */ }
+    arr = Array.isArray(parsed) ? (parsed as string[]) : [raw];
   }
-  // Already a JSON array string? Parse and re-serialize to normalize.
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) return JSON.stringify(parsed);
-  } catch { /* not JSON */ }
-  // Plain string (single number) — wrap in array
-  return JSON.stringify([raw]);
+  return JSON.stringify(dedupeAddresses(arr));
 }
 
 export interface ThreadListSyncResult {
