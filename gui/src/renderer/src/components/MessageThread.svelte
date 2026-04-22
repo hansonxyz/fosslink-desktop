@@ -826,7 +826,7 @@
             <span class="message-thread__timestamp-label">{msg.timestampLabel}</span>
           </div>
         {/if}
-        <MessageBubble message={msg} onReact={handleReact} />
+        <MessageBubble message={msg} isGroupThread={(selectedConversation?.addresses.length ?? 0) > 1} onReact={handleReact} />
       {/each}
       <div style:height="{visible.bottomPad}px"></div>
       {#each pendingWithSeparators as { pmsg, showTimestamp, timestampLabel } (pmsg.queueId)}

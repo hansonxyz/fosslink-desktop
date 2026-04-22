@@ -15,10 +15,11 @@
 
   interface Props {
     message: DisplayMessage
+    isGroupThread?: boolean
     onReact?: (messageId: number, messageBody: string, verb: string) => void
   }
 
-  const { message, onReact }: Props = $props()
+  const { message, isGroupThread = false, onReact }: Props = $props()
 
   let showContextMenu = $state(false)
   let menuX = $state(0)
@@ -215,6 +216,9 @@
     </button>
   {/if}
   <div class="message-bubble__content" style="-webkit-user-select: text; user-select: text;">
+    {#if isGroupThread && !message.isSent && message.senderName}
+      <span class="message-bubble__sender">{message.senderName}</span>
+    {/if}
     {#if hasAttachments}
       <div class="message-bubble__attachments">
         {#each message.attachments as att (att.partId)}
@@ -406,6 +410,15 @@
   .message-bubble--received .message-bubble__content {
     background-color: var(--bubble-received);
     border-bottom-left-radius: var(--radius-sm);
+  }
+
+  .message-bubble__sender {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-primary);
+    opacity: 0.75;
+    margin-bottom: 2px;
+    font-weight: var(--font-weight-medium);
   }
 
   .message-bubble__body {
