@@ -249,6 +249,7 @@ interface DaemonApi {
   onStateChange(callback: (state: ConnectionState) => void): void
   offStateChange(callback: (state: ConnectionState) => void): void
   showSaveDialog(defaultName: string, filters: { name: string; extensions: string[] }[]): Promise<string | null>
+  showDirectoryDialog(title?: string): Promise<string | null>
   showOpenDialog(): Promise<Array<{
     draftId: string
     filePath: string

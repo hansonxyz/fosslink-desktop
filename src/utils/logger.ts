@@ -32,6 +32,8 @@ export interface LoggerOptions {
 }
 
 let rootLogger: pino.Logger | undefined;
+let currentLevel: LogLevel = 'info';
+let currentFilePath: string | undefined;
 let initialized = false;
 let logTapCallback: ((level: string, category: string, msg: string, data?: Record<string, unknown>) => void) | undefined;
 
@@ -44,10 +46,26 @@ const noopLogger: Logger = {
   child: () => noopLogger,
 };
 
-function wrapPino(pinoInstance: pino.Logger): Logger {
+/** Wraps the current rootLogger with fixed bindings. Re-reads rootLogger on
+ *  each call so that `rotateLogFile` transparently swaps the destination for
+ *  existing child loggers. */
+function wrapPino(bindings: Record<string, unknown>): Logger {
+  let cachedRoot: pino.Logger | undefined;
+  let cachedChild: pino.Logger | undefined;
+
+  const getChild = (): pino.Logger | undefined => {
+    if (!rootLogger) return undefined;
+    if (rootLogger !== cachedRoot) {
+      cachedRoot = rootLogger;
+      cachedChild = rootLogger.child(bindings);
+    }
+    return cachedChild;
+  };
+
   function logAt(level: 'debug' | 'info' | 'warn' | 'error' | 'fatal') {
     return (category: string, msg: string, data?: Record<string, unknown>) => {
-      pinoInstance[level]({ category, ...data }, msg);
+      const child = getChild();
+      if (child) child[level]({ category, ...data }, msg);
       if (logTapCallback) {
         logTapCallback(level, category, msg, data);
       }
@@ -60,8 +78,8 @@ function wrapPino(pinoInstance: pino.Logger): Logger {
     warn: logAt('warn'),
     error: logAt('error'),
     fatal: logAt('fatal'),
-    child(bindings: Record<string, unknown>): Logger {
-      return wrapPino(pinoInstance.child(bindings));
+    child(newBindings: Record<string, unknown>): Logger {
+      return wrapPino({ ...bindings, ...newBindings });
     },
   };
 }
@@ -74,6 +92,9 @@ export function initializeLogger(options: LoggerOptions): void {
   if (initialized) {
     throw new Error('Logger already initialized. Call resetLogger() first if reinitializing.');
   }
+
+  currentLevel = options.level;
+  currentFilePath = options.filePath;
 
   const pinoOpts: pino.LoggerOptions = {
     level: options.level,
@@ -108,14 +129,31 @@ export function initializeLogger(options: LoggerOptions): void {
 }
 
 /**
+ * Point the root logger at a new file path. Existing child loggers returned
+ * from createLogger() continue to work — they re-read the root on each log
+ * call, so the swap is transparent. Used to roll over logs at midnight.
+ */
+export function rotateLogFile(newFilePath: string): void {
+  if (!initialized) return;
+  const dest = pino.destination({ dest: newFilePath, sync: false });
+  rootLogger = pino({ level: currentLevel }, dest);
+  currentFilePath = newFilePath;
+}
+
+/** Current log file path (or undefined if not file-backed). */
+export function getCurrentLogFile(): string | undefined {
+  return currentFilePath;
+}
+
+/**
  * Create a named child logger for a module.
  * Returns a no-op logger if initializeLogger() has not been called.
  */
 export function createLogger(name: string): Logger {
-  if (!rootLogger) {
-    return noopLogger;
-  }
-  return wrapPino(rootLogger.child({ module: name }));
+  // Always return a dynamic wrapper — the wrapper re-reads rootLogger on
+  // each call, so callers can cache this at module load time even if the
+  // logger isn't initialized yet (it will no-op until init).
+  return wrapPino({ module: name });
 }
 
 /**
@@ -149,4 +187,5 @@ export function resetLogger(): void {
   rootLogger = undefined;
   initialized = false;
   logTapCallback = undefined;
+  currentFilePath = undefined;
 }

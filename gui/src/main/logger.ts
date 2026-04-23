@@ -1,24 +1,40 @@
 import * as fs from 'node:fs'
+import { dateStampedPath, cleanupOldLogs, scheduleLogRotation } from '@daemon/utils/log-rotation'
 
-let logPath: string | null = null
+let logBasePath: string | null = null
+let currentLogPath: string | null = null
+let rotationDispose: (() => void) | null = null
 
-export function initLogger(path: string): void {
-  // Rotate old logs (keep 3 generations)
-  if (fs.existsSync(path)) {
-    for (let i = 2; i >= 1; i--) {
-      const src = i === 1 ? path : `${path}.${i}`
-      const dst = `${path}.${i + 1}`
-      if (fs.existsSync(src)) {
-        try { fs.renameSync(src, dst) } catch { /* ignore */ }
-      }
-    }
-  }
-
-  logPath = path
-  // Truncate and write header
+function writeHeader(path: string): void {
   try {
-    fs.writeFileSync(logPath, `--- FossLink GUI started ${new Date().toISOString()} ---\n`)
+    // Append if file already exists today; otherwise create with header
+    if (!fs.existsSync(path)) {
+      fs.writeFileSync(path, `--- FossLink GUI started ${new Date().toISOString()} ---\n`)
+    } else {
+      fs.appendFileSync(path, `--- FossLink GUI started ${new Date().toISOString()} ---\n`)
+    }
   } catch { /* ignore */ }
+}
+
+export function initLogger(basePath: string): void {
+  logBasePath = basePath
+  cleanupOldLogs(basePath)
+  currentLogPath = dateStampedPath(basePath)
+  writeHeader(currentLogPath)
+
+  // Midnight rollover + hourly retention cleanup
+  rotationDispose = scheduleLogRotation(
+    () => {
+      if (!logBasePath) return
+      const next = dateStampedPath(logBasePath)
+      currentLogPath = next
+      writeHeader(next)
+      cleanupOldLogs(logBasePath)
+    },
+    () => {
+      if (logBasePath) cleanupOldLogs(logBasePath)
+    },
+  )
 }
 
 export function log(category: string, message: string, data?: Record<string, unknown>): void {
@@ -27,9 +43,9 @@ export function log(category: string, message: string, data?: Record<string, unk
     ? `${timestamp} [${category}] ${message} ${JSON.stringify(data)}`
     : `${timestamp} [${category}] ${message}`
 
-  if (logPath) {
+  if (currentLogPath) {
     try {
-      fs.appendFileSync(logPath, line + '\n')
+      fs.appendFileSync(currentLogPath, line + '\n')
     } catch { /* ignore write errors */ }
   }
   if (__DEV_BUILD__) {
@@ -38,10 +54,15 @@ export function log(category: string, message: string, data?: Record<string, unk
 }
 
 export function closeLogger(): void {
-  if (logPath) {
+  if (rotationDispose) {
+    rotationDispose()
+    rotationDispose = null
+  }
+  if (currentLogPath) {
     try {
-      fs.appendFileSync(logPath, `--- FossLink GUI stopped ${new Date().toISOString()} ---\n`)
+      fs.appendFileSync(currentLogPath, `--- FossLink GUI stopped ${new Date().toISOString()} ---\n`)
     } catch { /* ignore */ }
-    logPath = null
+    currentLogPath = null
+    logBasePath = null
   }
 }

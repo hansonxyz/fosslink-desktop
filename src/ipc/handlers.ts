@@ -44,6 +44,15 @@ export type NotificationEmitter = (method: string, params: Record<string, unknow
 // Module-level emit reference (set by wireNotifications, used by gallery streaming)
 let emit: NotificationEmitter;
 
+// Active backup job state (module-level so cancel handlers can reach it).
+interface ActiveBackup {
+  id: string;
+  abort: AbortController;
+  targetDir: string;
+  folderWasEmpty: boolean;
+}
+let activeBackup: ActiveBackup | null = null;
+
 export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
   const methods = new Map<string, MethodHandler>();
 
@@ -709,6 +718,215 @@ export function createMethodMap(daemon: Daemon): Map<string, MethodHandler> {
   methods.set('sms.resync_all', async () => {
     daemon.resync();
     return { ok: true };
+  });
+
+  // --- Backup / Export ---
+
+  methods.set('backup.check_folder', async (params) => {
+    const targetDir = params?.['targetDir'] as string | undefined;
+    if (!targetDir || typeof targetDir !== 'string') {
+      throw new Error('Missing required parameter: targetDir');
+    }
+    const exists = fs.existsSync(targetDir);
+    let empty = true;
+    let writable = true;
+    if (exists) {
+      try {
+        empty = fs.readdirSync(targetDir).length === 0;
+      } catch { empty = false; writable = false; }
+      try {
+        fs.accessSync(targetDir, fs.constants.W_OK);
+      } catch { writable = false; }
+    }
+    return { exists, empty, writable };
+  });
+
+  methods.set('backup.threads_start', async (params) => {
+    const targetDir = params?.['targetDir'] as string | undefined;
+    const format = (params?.['format'] as string | undefined) ?? 'txt';
+    const includeMedia = params?.['includeMedia'] === true;
+    if (!targetDir) throw new Error('Missing required parameter: targetDir');
+    if (format !== 'txt' && format !== 'xml' && format !== 'html') {
+      throw new Error(`Format "${format}" not yet implemented.`);
+    }
+    if (activeBackup) {
+      throw new Error('A backup is already running');
+    }
+
+    // Snapshot whether the folder is empty (governs cancel-cleanup)
+    let folderWasEmpty = true;
+    try {
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        folderWasEmpty = true;
+      } else {
+        folderWasEmpty = fs.readdirSync(targetDir).length === 0;
+      }
+    } catch (err) {
+      throw new Error(`Cannot prepare target directory: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    const id = `backup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const abort = new AbortController();
+    activeBackup = { id, abort, targetDir, folderWasEmpty };
+
+    // Kick off async — return the id synchronously
+    void (async (): Promise<void> => {
+      const { exportThreads, AbortError } = await import('../backup/thread-export.js');
+      try {
+        const result = await exportThreads({
+          targetDir,
+          includeMedia,
+          format: format as 'txt' | 'xml' | 'html',
+          queryClient: daemon.getQueryClient(),
+          db: daemon.getDatabaseService(),
+          smsHandler: daemon.getSmsHandler(),
+          onProgress: (p) => {
+            if (activeBackup?.id !== id) return;
+            // Mirror every console line to the daemon log for after-the-fact
+            // review (the renderer's 200-line ring buffer can scroll out).
+            log.info('backup.export', p.line, { percent: p.percent, status: p.status ?? '' });
+            emit('backup.progress', {
+              backupId: id,
+              percent: p.percent,
+              line: p.line,
+              status: p.status,
+            });
+          },
+          signal: abort.signal,
+        });
+        if (activeBackup?.id === id) {
+          emit('backup.complete', {
+            backupId: id,
+            kind: 'threads',
+            threadsWritten: result.threadsWritten,
+            messagesWritten: result.messagesWritten,
+            attachmentsWritten: result.attachmentsWritten,
+            elapsedMs: result.elapsedMs,
+            errors: result.errors.length,
+          });
+        }
+      } catch (err) {
+        if (err instanceof AbortError || abort.signal.aborted) {
+          if (activeBackup?.id === id) {
+            emit('backup.cancelled', { backupId: id, canDeletePartial: folderWasEmpty });
+          }
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          if (activeBackup?.id === id) {
+            emit('backup.error', { backupId: id, message });
+          }
+        }
+      } finally {
+        if (activeBackup?.id === id) activeBackup = null;
+      }
+    })();
+
+    return { backupId: id };
+  });
+
+  methods.set('backup.media_start', async (params) => {
+    const targetDir = params?.['targetDir'] as string | undefined;
+    const scope = params?.['scope'] as string | undefined;
+    if (!targetDir) throw new Error('Missing required parameter: targetDir');
+    if (scope !== 'gallery' && scope !== 'screenshots' && scope !== 'images' && scope !== 'folders') {
+      throw new Error(`Unknown scope: ${String(scope)}`);
+    }
+    if (activeBackup) throw new Error('A backup is already running');
+
+    let folderWasEmpty = true;
+    try {
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      } else {
+        folderWasEmpty = fs.readdirSync(targetDir).length === 0;
+      }
+    } catch (err) {
+      throw new Error(`Cannot prepare target directory: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    const id = `backup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const abort = new AbortController();
+    activeBackup = { id, abort, targetDir, folderWasEmpty };
+
+    void (async (): Promise<void> => {
+      const { exportGallery } = await import('../backup/gallery-export.js');
+      const { AbortError } = await import('../backup/thread-export.js');
+      try {
+        const result = await exportGallery({
+          targetDir,
+          scope: scope as 'gallery' | 'screenshots' | 'images' | 'folders',
+          queryClient: daemon.getQueryClient(),
+          downloadFile: (filePath, expectedSize) => daemon.downloadGalleryFile(filePath, expectedSize),
+          isFileCached: (filePath) => daemon.isGalleryFileCached(filePath),
+          onProgress: (p) => {
+            if (activeBackup?.id !== id) return;
+            log.info('backup.export', p.line, { percent: p.percent, status: p.status ?? '' });
+            emit('backup.progress', {
+              backupId: id,
+              percent: p.percent,
+              line: p.line,
+              status: p.status,
+            });
+          },
+          signal: abort.signal,
+        });
+        if (activeBackup?.id === id) {
+          emit('backup.complete', {
+            backupId: id,
+            kind: 'media',
+            filesWritten: result.filesWritten,
+            filesSkipped: result.filesSkipped,
+            bytesWritten: result.bytesWritten,
+            elapsedMs: result.elapsedMs,
+            errors: result.errors.length,
+          });
+        }
+      } catch (err) {
+        if (err instanceof AbortError || abort.signal.aborted) {
+          if (activeBackup?.id === id) {
+            emit('backup.cancelled', { backupId: id, canDeletePartial: folderWasEmpty });
+          }
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          if (activeBackup?.id === id) {
+            emit('backup.error', { backupId: id, message });
+          }
+        }
+      } finally {
+        if (activeBackup?.id === id) activeBackup = null;
+      }
+    })();
+
+    return { backupId: id };
+  });
+
+  methods.set('backup.cancel', async (params) => {
+    const backupId = params?.['backupId'] as string | undefined;
+    if (!activeBackup) return { ok: false };
+    if (backupId && activeBackup.id !== backupId) return { ok: false };
+    activeBackup.abort.abort();
+    return { ok: true };
+  });
+
+  methods.set('backup.delete_partial', async (params) => {
+    const backupId = params?.['backupId'] as string | undefined;
+    // Only honored immediately after a cancel — renderer is responsible for
+    // only calling this when canDeletePartial was true.
+    const targetDir = params?.['targetDir'] as string | undefined;
+    if (!targetDir) throw new Error('Missing required parameter: targetDir');
+    // Extra safety: never rm a path that doesn't match the active backup's
+    // known-empty-to-start directory (or the one we just cleaned up).
+    if (activeBackup && activeBackup.targetDir !== targetDir) {
+      throw new Error('Refusing to delete: path does not match active backup');
+    }
+    void backupId; // currently unused but reserved for audit
+    try {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      return { ok: true };
+    } catch (err) {
+      throw new Error(`Failed to delete: ${err instanceof Error ? err.message : String(err)}`);
+    }
   });
 
   methods.set('sms.resync_threads', async () => {

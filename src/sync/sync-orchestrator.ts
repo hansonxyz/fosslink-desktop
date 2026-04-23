@@ -20,6 +20,9 @@ import { contactSync } from './operations/contact-sync.js';
 import { quickMessageSync } from './operations/quick-message-sync.js';
 import { fullThreadSync } from './operations/full-thread-sync.js';
 import { debugConsole } from './debug-console.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('sync');
 
 // --- Types ---
 
@@ -135,6 +138,7 @@ export class SyncOrchestrator {
     this.aborted = false;
     this.paused = false;
 
+    logger.info('sync', 'Phone connected — sync pipeline starting');
     debugConsole.narrative('Phone connected — starting sync');
 
     // Mark stale threads (fully synced > 6 days ago)
@@ -176,6 +180,7 @@ export class SyncOrchestrator {
 
     // Suppress duplicate log when cleanupConnection is called during reconnect
     if (!alreadyDisconnected) {
+      logger.info('sync', 'Phone disconnected — sync pipeline stopped');
       debugConsole.narrative('Phone disconnected');
     }
   }
@@ -483,6 +488,11 @@ export class SyncOrchestrator {
     const threadsToSync = conversations.filter(c => {
       if (!initialComplete) return (now - c.date) < ONE_MONTH_MS;
       return (now - c.date) < ONE_MONTH_MS;
+    });
+
+    logger.info('sync', 'Fast message sync starting', {
+      threadsToSync: threadsToSync.length,
+      initialComplete,
     });
 
     // Sort by most recent first

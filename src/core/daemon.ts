@@ -25,8 +25,10 @@ import {
   createLogger,
   shutdownLogger,
   resetLogger,
+  rotateLogFile,
 } from '../utils/logger.js';
 import type { Logger } from '../utils/logger.js';
+import { dateStampedPath, cleanupOldLogs, scheduleLogRotation } from '../utils/log-rotation.js';
 import { getDataDir, getConfigPath, getTrustedCertsDir, getSocketPath, getAttachmentsDir, getContactPhotosDir, getGalleryCacheDir } from '../utils/paths.js';
 import { DatabaseService } from '../database/database.js';
 import {
@@ -137,6 +139,7 @@ export class Daemon {
   private dataDir: string | undefined;
   private pidPath: string | undefined;
   private keepaliveInterval: ReturnType<typeof setInterval> | undefined;
+  private logRotationDispose: (() => void) | undefined;
   private stopped = false;
   private started = false;
 
@@ -200,26 +203,32 @@ export class Daemon {
     const configPath = options?.configPath ?? getConfigPath();
     this.config = loadConfig(configPath);
 
-    // Initialize logger — rotate old logs (keep 3 generations)
-    const logPath = options?.logFilePath ?? path.join(this.dataDir, 'daemon.log');
-    if (fs.existsSync(logPath)) {
-      for (let i = 2; i >= 1; i--) {
-        const src = i === 1 ? logPath : `${logPath}.${i}`;
-        const dst = `${logPath}.${i + 1}`;
-        if (fs.existsSync(src)) {
-          fs.renameSync(src, dst);
-        }
-      }
-    }
+    // Initialize logger — date-stamped file, 7-day retention, midnight rollover.
+    const logBase = options?.logFilePath ?? path.join(this.dataDir, 'daemon.log');
+    const todayLogPath = dateStampedPath(logBase);
+    cleanupOldLogs(logBase);
     const forceFile = options?.logToFile === true;
     const isPretty = !forceFile && process.env['NODE_ENV'] !== 'production';
     initializeLogger({
       level: this.config.daemon.logLevel,
-      filePath: forceFile || !isPretty ? logPath : undefined,
+      filePath: forceFile || !isPretty ? todayLogPath : undefined,
       pretty: isPretty,
     });
 
     this.logger = createLogger('daemon');
+
+    // Schedule rotation: swap to next day's file at midnight, retention sweep hourly.
+    if (forceFile || !isPretty) {
+      this.logRotationDispose = scheduleLogRotation(
+        () => {
+          const nextPath = dateStampedPath(logBase);
+          rotateLogFile(nextPath);
+          cleanupOldLogs(logBase);
+          this.logger?.info('core.daemon', 'Log file rolled over at midnight', { newPath: nextPath });
+        },
+        () => { cleanupOldLogs(logBase); },
+      );
+    }
 
     // Create state machine
     this.stateMachine = new StateMachine();
@@ -857,9 +866,17 @@ export class Daemon {
       }
     }
 
-    // Keepalive to prevent Node from exiting
+    // Keepalive to prevent Node from exiting. Doubles as a 1-minute heartbeat
+    // so we can tell from the daemon log whether the process ran continuously
+    // or was suspended (drift between heartbeats implies system sleep).
     if (!options?.skipKeepalive) {
-      this.keepaliveInterval = setInterval(() => {}, 60000);
+      this.keepaliveInterval = setInterval(() => {
+        const connCount = this.wsServer?.getConnectedDeviceIds().length ?? 0;
+        this.logger!.info('core.daemon', 'Heartbeat', {
+          connectedDevices: connCount,
+          syncState: this.syncOrchestrator?.state ?? 'none',
+        });
+      }, 60_000);
     }
 
     this.logger.info('core.daemon', 'Daemon started', {
@@ -939,6 +956,10 @@ export class Daemon {
     }
 
     // Clear keepalive
+    if (this.logRotationDispose) {
+      this.logRotationDispose();
+      this.logRotationDispose = undefined;
+    }
     if (this.keepaliveInterval) {
       clearInterval(this.keepaliveInterval);
       this.keepaliveInterval = undefined;
@@ -1163,6 +1184,14 @@ export class Daemon {
   async requestGalleryThumbnail(filePath: string): Promise<{ localPath: string; failed: boolean }> {
     const result = await this.getGalleryHandler().getThumbnail(filePath);
     return { localPath: result.localPath, failed: result.failed };
+  }
+
+  /** Whether the given phone-relative file path already has a cached full
+   *  copy on disk. Lets callers (e.g. the backup progress log) show
+   *  "copied from cache" vs "downloaded" without changing behavior. */
+  isGalleryFileCached(filePath: string): boolean {
+    const cache = this.getGalleryHandler()['cache'] as import('../gallery/gallery-cache.js').GalleryCache;
+    return cache.getFullFilePath(filePath) !== null;
   }
 
   async downloadGalleryFile(filePath: string, expectedSize: number): Promise<string> {

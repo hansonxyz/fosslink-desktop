@@ -38,8 +38,18 @@ interface PendingQuery {
 
 type SendFunction = (msg: ProtocolMessage) => void;
 
-/** Milliseconds with no page received before the query is considered stalled. */
-const PAGE_INACTIVITY_TIMEOUT_MS = 15_000;
+/** Milliseconds between pages before the query is considered stalled.
+ *  Per-page idle timer — resets on every page receipt — so queries with
+ *  steady progress never time out. Only a silent phone does. */
+const PAGE_INACTIVITY_TIMEOUT_MS = 30_000;
+
+/** Budget for the first page to arrive. Android query handlers run
+ *  synchronously (see QueryServer.kt) — the phone has to finish the whole
+ *  computation before ANY page can be sent. For a gallery scan on a phone
+ *  with tens of thousands of media files, that can easily exceed 30s. Give
+ *  it a generous window; after the first page arrives, the tighter
+ *  PAGE_INACTIVITY_TIMEOUT_MS takes over. */
+const FIRST_PAGE_TIMEOUT_MS = 10 * 60_000; // 10 minutes
 
 export class QueryClient {
   private sendMessage: SendFunction | null = null;
@@ -266,17 +276,22 @@ export class QueryClient {
     const q = this.active;
     if (!q) return;
 
+    // Pre-first-page uses a much larger budget than between-page gaps —
+    // the phone is still computing and hasn't started streaming yet.
+    const isFirstPage = q.receivedCount === 0;
+    const timeoutMs = isFirstPage ? FIRST_PAGE_TIMEOUT_MS : PAGE_INACTIVITY_TIMEOUT_MS;
+
     this.inactivityTimer = setTimeout(() => {
       if (this.active !== q) return;
       const received = q.receivedCount;
       const total = q.totalPages ?? '?';
       debugConsole.log('transport', 'query',
-        `Query ${q.resource} stalled — no page for ${PAGE_INACTIVITY_TIMEOUT_MS / 1000}s ` +
+        `Query ${q.resource} stalled — no page for ${timeoutMs / 1000}s ` +
         `(received ${received}/${total} pages), timing out`);
       this.active.reject(new Error(`Query timed out: ${q.resource} (${received}/${total} pages)`));
       this.active = null;
       this.drainQueue();
-    }, PAGE_INACTIVITY_TIMEOUT_MS);
+    }, timeoutMs);
   }
 
   private drainQueue(): void {

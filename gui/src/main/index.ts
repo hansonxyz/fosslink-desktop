@@ -365,6 +365,15 @@ function setupIpcHandlers(): void {
     return result.canceled ? null : result.filePath ?? null
   })
 
+  ipcMain.handle('dialog:open-directory', async (_event, title?: string) => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: title ?? 'Select folder',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
+
   ipcMain.handle('fs:writeFile', async (_event, filePath: string, content: string) => {
     const { writeFile } = await import('node:fs/promises')
     await writeFile(filePath, content, 'utf-8')

@@ -125,7 +125,7 @@ export const MSG_FS_WATCH_EVENT = 'fosslink.fs.watch_event' as const;
 export const MSG_FS_WATCH_EVENT_ACK = 'fosslink.fs.watch_event_ack' as const;
 
 export const CLIENT_TYPE = 'fosslink' as const;
-export const CLIENT_VERSION = '1.6.0' as const;
+export const CLIENT_VERSION = '1.7.0' as const;
 export const MIN_PEER_VERSION = '1.0.0' as const;
 
 // --- Interfaces ---

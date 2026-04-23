@@ -81,6 +81,10 @@ const api = {
     return ipcRenderer.invoke('dialog:save', defaultName, filters) as Promise<string | null>
   },
 
+  showDirectoryDialog(title?: string): Promise<string | null> {
+    return ipcRenderer.invoke('dialog:open-directory', title) as Promise<string | null>
+  },
+
   showOpenDialog(): Promise<Array<{
     draftId: string
     filePath: string

@@ -22,8 +22,14 @@ import {
 } from '../network/packet.js';
 import { GalleryCache } from './gallery-cache.js';
 
-/** Timeout for gallery scan requests (ms) — can be slow with thousands of files */
-const SCAN_TIMEOUT_MS = 60_000;
+/** Budget for the FIRST batch of a scan to arrive. Android walks external
+ *  storage synchronously before sending anything, which can take minutes on
+ *  phones with tens of thousands of media files. Give it a generous window. */
+const SCAN_FIRST_BATCH_TIMEOUT_MS = 10 * 60_000;
+
+/** Budget for the gap BETWEEN scan batches once the phone has started
+ *  streaming. Resets on every batch received. */
+const SCAN_BATCH_INTERVAL_MS = 30_000;
 
 /** Timeout for individual thumbnail requests (ms) */
 const THUMBNAIL_TIMEOUT_MS = 15_000;
@@ -157,12 +163,14 @@ export class GalleryHandler {
         this.onScanBatch(batchItems, batch, totalBatches);
       }
 
-      // Reset timeout on each batch (the scan is still in progress)
+      // Reset timeout on each batch (the scan is still in progress).
+      // After the first batch arrives, switch to the tight between-batch
+      // budget — gaps this big mean the phone actually stopped streaming.
       clearTimeout(entry.timer);
       entry.timer = setTimeout(() => {
         this.pending.delete(requestId);
         entry.reject(new Error('Gallery scan timed out'));
-      }, SCAN_TIMEOUT_MS);
+      }, SCAN_BATCH_INTERVAL_MS);
 
       if (batch >= totalBatches) {
         // Last batch — resolve with ALL accumulated items
@@ -253,7 +261,7 @@ export class GalleryHandler {
     const body = await this.sendRequest(MSG_GALLERY_SCAN, {
       batchSize: this.scanBatchSize,
       scope: this.scanScope,
-    }, SCAN_TIMEOUT_MS) as Record<string, unknown>;
+    }, SCAN_FIRST_BATCH_TIMEOUT_MS) as Record<string, unknown>;
     const items = body['items'] as Array<Record<string, unknown>>;
 
     if (!Array.isArray(items)) {

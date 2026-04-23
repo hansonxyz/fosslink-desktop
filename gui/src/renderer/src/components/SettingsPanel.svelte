@@ -15,9 +15,10 @@
     onAbout: () => void
     onContactMigration?: () => void
     onSyncConsole?: () => void
+    onBackupExport?: () => void
   }
 
-  const { onClose, onUnpaired, onAbout, onContactMigration, onSyncConsole }: Props = $props()
+  const { onClose, onUnpaired, onAbout, onContactMigration, onSyncConsole, onBackupExport }: Props = $props()
 
   let confirmingUnpair = $state(false)
   let unpairing = $state(false)
@@ -297,6 +298,19 @@
             <div class="settings-panel__extra-text">
               <span class="settings-panel__extra-title">{t('extras.migrationTitle')}</span>
               <span class="settings-panel__extra-subtitle">{t('extras.migrationSubtitle')}</span>
+            </div>
+          </button>
+
+          <!-- Backup / Export All -->
+          <button class="settings-panel__extra-card" onclick={() => onBackupExport?.()}>
+            <div class="settings-panel__extra-icon">
+              <svg viewBox="0 0 24 24" width="28" height="28">
+                <path fill="currentColor" d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
+              </svg>
+            </div>
+            <div class="settings-panel__extra-text">
+              <span class="settings-panel__extra-title">{t('extras.backupTitle')}</span>
+              <span class="settings-panel__extra-subtitle">{t('extras.backupSubtitle')}</span>
             </div>
           </button>
         </div>

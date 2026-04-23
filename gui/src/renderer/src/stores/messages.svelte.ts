@@ -11,7 +11,7 @@
  */
 
 import { findContactByPhone } from './contacts.svelte'
-import { clearSentMessages } from './send-queue.svelte'
+import { clearSentMessages, clearMatchingPending, setRowsProvider } from './send-queue.svelte'
 import { markThreadRead, refreshConversations, conversations } from './conversations.svelte'
 import { scrollState } from './scroll.svelte'
 import { retryPendingDownloads, notifyAttachmentReady } from './attachments.svelte'
@@ -297,9 +297,15 @@ async function doLoadThread(threadId: number): Promise<void> {
       messages.rows.length = 0
       messages.rows.push(...rows)
 
-      // Clear any pending "sent" messages now that real data is in the store.
-      // This replaces the optimistic bubbles with their synced versions without
-      // the UI gap that occurred when clearing at the notification entry point.
+      // Clear any pending ghost whose real synced version has now arrived,
+      // regardless of status — covers the case where the phone reports the
+      // real message before our send_status "sent" notification, which would
+      // otherwise leave the ghost on screen for up to 5 seconds.
+      clearMatchingPending(rows)
+
+      // Safety net: clear any ghost that reached 'sent' state but wasn't
+      // matched above (e.g. attachment-only sends where body matching is
+      // skipped). The 5-second timer in applyStatus is still the fallback.
       clearSentMessages()
       // Clear optimistic reactions — the synced tapback messages are now in rows
       pendingReactions.clear()
@@ -457,6 +463,10 @@ export function tryMarkCurrentThreadRead(): void {
  * Returns a cleanup function.
  */
 export function initMessagesStore(): () => void {
+  // Let the send-queue pre-check real rows before creating a ghost, so a
+  // fast phone response can preempt the optimistic bubble.
+  setRowsProvider(() => messages.rows)
+
   const handleNotification = (method: string, params: unknown): void => {
     if (method === 'sms.messages') {
       const data = params as { threadId?: number; newestDate?: number } | null

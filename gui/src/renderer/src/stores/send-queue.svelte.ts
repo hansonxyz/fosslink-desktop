@@ -36,6 +36,64 @@ const earlyStatuses = new Map<string, 'sent' | 'timeout' | 'failed'>()
 // Delayed-removal timers for 'sent' messages (5s grace period)
 const removalTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+// Provider for current message rows, registered by the messages store.
+// Used so we can check if the phone has already delivered a matching
+// outgoing message (fast phone response beating our ghost) without
+// creating a circular import between send-queue and messages.
+let rowsProvider: (() => MessageRow[]) | null = null
+
+export function setRowsProvider(fn: () => MessageRow[]): void {
+  rowsProvider = fn
+}
+
+/** Does the given rows list already contain an outgoing message matching
+ *  (threadId, body) whose date is recent enough to be from this send? */
+function rowsContainMatch(
+  rows: MessageRow[],
+  threadId: number,
+  body: string,
+  ghostDate: number,
+): boolean {
+  for (const r of rows) {
+    if (r.thread_id !== threadId) continue
+    if (r.type !== 2) continue
+    if ((r.body ?? '') !== body) continue
+    if (r.date < ghostDate - 5_000) continue
+    if (r.date > ghostDate + 60_000) continue
+    return true
+  }
+  return false
+}
+
+function removeGhost(idx: number): void {
+  const msg = pending[idx]!
+  if (msg.attachments.length > 0) {
+    window.api.cleanupDrafts(msg.attachments.map((a) => a.draftId))
+  }
+  const timer = removalTimers.get(msg.queueId)
+  if (timer) {
+    clearTimeout(timer)
+    removalTimers.delete(msg.queueId)
+  }
+  if (msg.daemonQueueId) daemonToTemp.delete(msg.daemonQueueId)
+  pending.splice(idx, 1)
+}
+
+/** Remove any pending ghosts whose real message has arrived in the given
+ *  rows. Call from the messages store after a row refresh. */
+export function clearMatchingPending(rows: MessageRow[]): void {
+  if (pending.length === 0) return
+  for (let i = pending.length - 1; i >= 0; i--) {
+    const p = pending[i]!
+    // Attachments-only ghosts have empty body — skip matching (tight body
+    // match isn't reliable and the 5s 'sent' timer will clean up).
+    if (p.body.length === 0) continue
+    if (rowsContainMatch(rows, p.threadId, p.body, p.date)) {
+      removeGhost(i)
+    }
+  }
+}
+
 function findIndex(queueId: string): number {
   return pending.findIndex((msg) => msg.queueId === queueId)
 }
@@ -74,6 +132,8 @@ export async function sendMessage(
   const plainRecipients = [...recipients]
   const plainAttachments = [...attachments]
 
+  const sendDate = Date.now()
+
   const msg: PendingMessage = {
     queueId: tempId,
     daemonQueueId: null,
@@ -81,12 +141,23 @@ export async function sendMessage(
     recipients: plainRecipients,
     body,
     attachments: plainAttachments,
-    date: Date.now(),
+    date: sendDate,
     status: 'sending',
   }
 
-  // Immediately visible in the UI
-  pending.push(msg)
+  // Pre-check: if the phone already reported a matching outgoing message
+  // (ultra-fast response that beat our ghost render), skip the ghost entirely.
+  // This runs synchronously before push so we never even flash a ghost in
+  // that race. Body-only match — attachment sends always ghost through.
+  const skipGhost =
+    body.length > 0 &&
+    rowsProvider !== null &&
+    rowsContainMatch(rowsProvider(), threadId, body, sendDate)
+
+  if (!skipGhost) {
+    // Immediately visible in the UI
+    pending.push(msg)
+  }
 
   try {
     const ipcParams: Record<string, unknown> = { recipients: plainRecipients, body }
@@ -100,6 +171,13 @@ export async function sendMessage(
 
     const result = (await window.api.invoke('sms.send', ipcParams)) as {
       queueId: string
+    }
+
+    // If we skipped the ghost there's nothing to map or apply status to —
+    // the real message is already on screen from the phone's fast response.
+    if (skipGhost) {
+      earlyStatuses.delete(result.queueId)
+      return
     }
 
     // Record the daemon→temp mapping
@@ -118,6 +196,12 @@ export async function sendMessage(
       applyStatus(tempId, result.queueId, earlyStatus)
     }
   } catch (err) {
+    if (skipGhost) {
+      window.api.log('renderer', 'Send queue error (no ghost)', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return
+    }
     // IPC call itself failed (daemon not connected, etc.)
     const idx = findIndex(tempId)
     if (idx !== -1) {

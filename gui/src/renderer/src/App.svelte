@@ -17,6 +17,7 @@
   import { initSendQueueStore } from './stores/send-queue.svelte'
   import { initBatteryStore } from './stores/battery.svelte'
   import { settings, initSettingsStore } from './stores/settings.svelte'
+  import { backupState } from './stores/backup-state.svelte'
   import { getThemeById, applyTheme } from './lib/themes'
   import { t } from './stores/i18n.svelte'
   import StatusIndicator from './components/StatusIndicator.svelte'
@@ -34,6 +35,7 @@
   import VersionLockout from './components/VersionLockout.svelte'
   import VersionPopup from './components/VersionPopup.svelte'
   import ContactMigration from './components/ContactMigration.svelte'
+  import BackupExport from './components/BackupExport.svelte'
   import PhoneGallery from './components/PhoneGallery.svelte'
   import SyncConsole from './components/SyncConsole.svelte'
   import PairingPage from './pages/PairingPage.svelte'
@@ -133,6 +135,7 @@
   let showSettings = $state(false)
   let showFindPhone = $state(false)
   let showContactMigration = $state(false)
+  let showBackupExport = $state(false)
   let showGallery = $state(false)
   let showSyncConsole = $state(false)
   let showAbout = $state(false)
@@ -169,6 +172,7 @@
     showSettings = false
     showFindPhone = false
     showContactMigration = false
+    showBackupExport = false
     showGallery = false
     showSyncConsole = false
   }
@@ -343,6 +347,11 @@
 />
 <div class="layout">
   <aside class="sidebar" style:width="{settings.sidebarWidth}px">
+    {#if backupState.running}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="sidebar__lock-overlay" onclick={(e) => { e.stopPropagation(); e.preventDefault() }} title="Backup in progress — finish or cancel the export to continue"></div>
+    {/if}
     <div class="sidebar__header">
       <div class="sidebar__title-row">
         <button class="sidebar__title" onclick={() => (showAbout = true)} title={t('app.about')}>{t('app.title')}</button>
@@ -439,8 +448,10 @@
       <PhoneGallery onClose={() => (showGallery = false)} />
     {:else if showContactMigration}
       <ContactMigration onClose={() => (showContactMigration = false)} />
+    {:else if showBackupExport}
+      <BackupExport onClose={() => (showBackupExport = false)} />
     {:else if showSettings}
-      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onContactMigration={() => { showSettings = false; showContactMigration = true }} onSyncConsole={() => { showSettings = false; showSyncConsole = true }} />
+      <SettingsPanel onClose={() => (showSettings = false)} onUnpaired={handleUnpaired} onAbout={() => (showAbout = true)} onContactMigration={() => { showSettings = false; showContactMigration = true }} onBackupExport={() => { showSettings = false; showBackupExport = true }} onSyncConsole={() => { showSettings = false; showSyncConsole = true }} />
     {:else if showFindPhone}
       <FindMyPhone onClose={() => (showFindPhone = false)} />
     {:else if showPairing}
@@ -499,6 +510,15 @@
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
+    position: relative;
+  }
+
+  .sidebar__lock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background-color: rgba(0, 0, 0, 0.3);
+    cursor: not-allowed;
   }
 
   .sidebar__header {
