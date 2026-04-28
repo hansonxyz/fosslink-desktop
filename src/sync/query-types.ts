@@ -10,6 +10,10 @@
 export const MSG_QUERY = 'fosslink.query' as const;
 export const MSG_QUERY_RESULT = 'fosslink.query.result' as const;
 export const MSG_QUERY_ACK = 'fosslink.query.ack' as const;
+/** Desktop → Phone: cancel an active query so the phone stops walking
+ *  storage / cursors after the desktop has given up (timeout, abort, or
+ *  caller no longer cares). Body: { queryId }. */
+export const MSG_QUERY_CANCEL = 'fosslink.query.cancel' as const;
 
 /** Desktop → Phone: query request */
 export interface QueryRequest {

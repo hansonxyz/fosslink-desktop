@@ -21,12 +21,6 @@ export const MSG_PAIR_ACCEPT = 'fosslink.pair_accept' as const;
 export const MSG_PAIR_REJECT = 'fosslink.pair_reject' as const;
 export const MSG_UNPAIR = 'fosslink.unpair' as const;
 
-// SMS sync
-export const MSG_SYNC_START = 'fosslink.sms.sync_start' as const;
-export const MSG_SYNC_BATCH = 'fosslink.sms.sync_batch' as const;
-export const MSG_SYNC_COMPLETE = 'fosslink.sms.sync_complete' as const;
-export const MSG_SYNC_ACK = 'fosslink.sms.sync_ack' as const;
-
 // Real-time events
 export const MSG_EVENT = 'fosslink.sms.event' as const;
 export const MSG_EVENT_ACK = 'fosslink.sms.event_ack' as const;
@@ -95,8 +89,6 @@ export const MSG_CONTACTS_MIGRATION_EXECUTE = 'fosslink.contacts.migration_execu
 export const MSG_CONTACTS_MIGRATION_EXECUTE_RESPONSE = 'fosslink.contacts.migration_execute_response' as const;
 
 // Gallery
-export const MSG_GALLERY_SCAN = 'fosslink.gallery.scan' as const;
-export const MSG_GALLERY_SCAN_RESPONSE = 'fosslink.gallery.scan_response' as const;
 export const MSG_GALLERY_THUMBNAIL = 'fosslink.gallery.thumbnail' as const;
 export const MSG_GALLERY_THUMBNAIL_RESPONSE = 'fosslink.gallery.thumbnail_response' as const;
 export const MSG_GALLERY_MEDIA_EVENT = 'fosslink.gallery.media_event' as const;
@@ -125,7 +117,7 @@ export const MSG_FS_WATCH_EVENT = 'fosslink.fs.watch_event' as const;
 export const MSG_FS_WATCH_EVENT_ACK = 'fosslink.fs.watch_event_ack' as const;
 
 export const CLIENT_TYPE = 'fosslink' as const;
-export const CLIENT_VERSION = '1.7.0' as const;
+export const CLIENT_VERSION = '1.7.1' as const;
 export const MIN_PEER_VERSION = '1.0.0' as const;
 
 // --- Interfaces ---

@@ -17,6 +17,7 @@ import { debugConsole } from './debug-console.js';
 import {
   MSG_QUERY,
   MSG_QUERY_ACK,
+  MSG_QUERY_CANCEL,
 } from './query-types.js';
 import type { QueryResultPage } from './query-types.js';
 import type { ProtocolMessage } from '../network/packet.js';
@@ -131,6 +132,8 @@ export class QueryClient {
 
       abortFn = () => {
         if (this.active?.resource === resource) {
+          this.sendCancel(this.active.queryId);
+          this.clearInactivityTimer();
           this.active.reject(new Error('Aborted'));
           this.active = null;
           this.drainQueue();
@@ -288,10 +291,27 @@ export class QueryClient {
       debugConsole.log('transport', 'query',
         `Query ${q.resource} stalled — no page for ${timeoutMs / 1000}s ` +
         `(received ${received}/${total} pages), timing out`);
+      // Tell the phone to stop walking — we've given up on this query.
+      this.sendCancel(q.queryId);
       this.active.reject(new Error(`Query timed out: ${q.resource} (${received}/${total} pages)`));
       this.active = null;
       this.drainQueue();
     }, timeoutMs);
+  }
+
+  /** Send a fosslink.query.cancel for the given queryId. Best-effort —
+   *  tolerates a missing send function (e.g. just disconnected). */
+  private sendCancel(queryId: string): void {
+    if (!this.sendMessage) return;
+    try {
+      this.sendMessage({
+        type: MSG_QUERY_CANCEL,
+        body: { queryId },
+      });
+    } catch (err) {
+      debugConsole.log('transport', 'query',
+        `Failed to send query.cancel for ${queryId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private drainQueue(): void {

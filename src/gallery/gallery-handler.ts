@@ -1,35 +1,27 @@
 /**
  * Gallery Handler
  *
- * Request/response correlator for fosslink.gallery.* messages. Sends gallery
- * commands to the phone over WebSocket and returns Promises that resolve when
- * the phone responds with the matching requestId.
+ * Two responsibilities:
  *
- * Each request gets a UUID requestId and a timeout. The phone echoes the
- * requestId in its response so we can correlate request to Promise.
+ *   1. Scan: list all media files via `queryClient.query('gallery.scan', ...)`.
+ *      The query system handles pagination + flow control; pages are streamed
+ *      back via the onScanBatch callback for progressive UI rendering.
+ *   2. Thumbnails: request/response correlator for `fosslink.gallery.thumbnail`
+ *      messages. Each request gets a UUID requestId; the phone echoes it in
+ *      its response so we can correlate request to Promise. Concurrency
+ *      limited to MAX_CONCURRENT_THUMBNAILS in flight.
  *
- * Supports: scan (list all gallery media), getThumbnail (fetch/cache thumbnails).
- * Full file downloads are handled by FilesystemHandler via the daemon orchestrator.
+ * Full file downloads are handled by FilesystemHandler via the daemon
+ * orchestrator (Daemon.downloadGalleryFile).
  */
 
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '../utils/logger.js';
 import type { Logger } from '../utils/logger.js';
 import type { ProtocolMessage } from '../network/packet.js';
-import {
-  MSG_GALLERY_SCAN,
-  MSG_GALLERY_THUMBNAIL,
-} from '../network/packet.js';
+import { MSG_GALLERY_THUMBNAIL } from '../network/packet.js';
 import { GalleryCache } from './gallery-cache.js';
-
-/** Budget for the FIRST batch of a scan to arrive. Android walks external
- *  storage synchronously before sending anything, which can take minutes on
- *  phones with tens of thousands of media files. Give it a generous window. */
-const SCAN_FIRST_BATCH_TIMEOUT_MS = 10 * 60_000;
-
-/** Budget for the gap BETWEEN scan batches once the phone has started
- *  streaming. Resets on every batch received. */
-const SCAN_BATCH_INTERVAL_MS = 30_000;
+import type { QueryClient } from '../sync/query-client.js';
 
 /** Timeout for individual thumbnail requests (ms) */
 const THUMBNAIL_TIMEOUT_MS = 15_000;
@@ -62,8 +54,6 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout>;
-  /** Accumulated items across batched gallery scan responses. */
-  accumulatedItems?: Array<Record<string, unknown>>;
 }
 
 interface QueuedThumbnail {
@@ -75,6 +65,7 @@ interface QueuedThumbnail {
 export class GalleryHandler {
   private pending = new Map<string, PendingRequest>();
   private sendMessage: ((msg: ProtocolMessage) => void) | null = null;
+  private queryClient: QueryClient | null = null;
   private cache: GalleryCache;
   private logger: Logger;
   private activeThumbnails: number = 0;
@@ -88,11 +79,16 @@ export class GalleryHandler {
   }
 
   /**
-   * Set the function used to send messages to the phone.
-   * Called when a device connection is established.
+   * Set the function used to send messages to the phone (used for thumbnail
+   * requests). Called when a device connection is established.
    */
   setSendFunction(fn: (msg: ProtocolMessage) => void): void {
     this.sendMessage = fn;
+  }
+
+  /** Wire the query client (used for the paginated gallery.scan query). */
+  setQueryClient(qc: QueryClient): void {
+    this.queryClient = qc;
   }
 
   /**
@@ -145,45 +141,10 @@ export class GalleryHandler {
       return;
     }
 
-    // Handle batched gallery scan responses
-    const batch = msg.body['batch'] as number | undefined;
-    const totalBatches = msg.body['totalBatches'] as number | undefined;
-
-    if (batch !== undefined && totalBatches !== undefined) {
-      const batchItems = msg.body['items'] as Array<Record<string, unknown>> ?? [];
-
-      // Accumulate items across batches
-      if (!entry.accumulatedItems) {
-        entry.accumulatedItems = [];
-      }
-      entry.accumulatedItems.push(...batchItems);
-
-      // Emit batch callback for progressive rendering
-      if (this.onScanBatch) {
-        this.onScanBatch(batchItems, batch, totalBatches);
-      }
-
-      // Reset timeout on each batch (the scan is still in progress).
-      // After the first batch arrives, switch to the tight between-batch
-      // budget — gaps this big mean the phone actually stopped streaming.
-      clearTimeout(entry.timer);
-      entry.timer = setTimeout(() => {
-        this.pending.delete(requestId);
-        entry.reject(new Error('Gallery scan timed out'));
-      }, SCAN_BATCH_INTERVAL_MS);
-
-      if (batch >= totalBatches) {
-        // Last batch — resolve with ALL accumulated items
-        this.pending.delete(requestId);
-        clearTimeout(entry.timer);
-        entry.resolve({ items: entry.accumulatedItems });
-      }
-    } else {
-      // Non-batched response (e.g. thumbnail)
-      this.pending.delete(requestId);
-      clearTimeout(entry.timer);
-      entry.resolve(msg.body);
-    }
+    // Single-shot response (thumbnail). Scan goes through QueryClient.
+    this.pending.delete(requestId);
+    clearTimeout(entry.timer);
+    entry.resolve(msg.body);
   }
 
   /** Callback for progressive gallery scan batches. Set by the IPC layer. */
@@ -238,16 +199,13 @@ export class GalleryHandler {
     return items;
   }
 
-  /**
-   * Fetch gallery items directly from the phone (bypasses cache).
-   * Used by the IPC gallery.scan handler to get batched responses.
-   */
-  /** Gallery scan batch size — configurable for testing. */
-  scanBatchSize = 50;
-
   /** Current scan scope — set before calling fetchScanDirect. */
   scanScope = 'all';
 
+  /**
+   * Fetch gallery items directly from the phone (bypasses cache).
+   * Used by the IPC gallery.scan handler.
+   */
   async fetchScanDirect(): Promise<GalleryItem[]> {
     const items = await this.fetchScan();
     this.cachedItems = items;
@@ -255,30 +213,40 @@ export class GalleryHandler {
   }
 
   /**
-   * Fetch gallery items from the phone (always goes to network).
+   * Fetch gallery items from the phone via the v1.3 paginated query system.
+   * Streams pages via the onScanBatch callback for progressive UI rendering.
    */
   private async fetchScan(): Promise<GalleryItem[]> {
-    const body = await this.sendRequest(MSG_GALLERY_SCAN, {
-      batchSize: this.scanBatchSize,
-      scope: this.scanScope,
-    }, SCAN_FIRST_BATCH_TIMEOUT_MS) as Record<string, unknown>;
-    const items = body['items'] as Array<Record<string, unknown>>;
-
-    if (!Array.isArray(items)) {
-      this.logger.warn('protocol.gallery', 'Gallery scan response missing items array');
+    if (!this.queryClient) {
+      this.logger.warn('protocol.gallery', 'Gallery scan called before query client wired');
       return [];
     }
 
-    return items.map((item) => ({
-      path: item['path'] as string,
-      filename: item['filename'] as string,
-      folder: item['folder'] as string,
-      mtime: item['mtime'] as number,
-      size: item['size'] as number,
-      mimeType: item['mimeType'] as string,
-      isHidden: item['isHidden'] === true,
-      kind: (item['kind'] as string) === 'video' ? 'video' as const : 'image' as const,
-    }));
+    const collected: GalleryItem[] = [];
+    const { promise } = this.queryClient.queryStreaming(
+      'gallery.scan',
+      { scope: this.scanScope },
+      (pageItems, page, totalPages) => {
+        const records = pageItems as Array<Record<string, unknown>>;
+        const typed = records.map((item) => ({
+          path: item['path'] as string,
+          filename: item['filename'] as string,
+          folder: item['folder'] as string,
+          mtime: item['mtime'] as number,
+          size: item['size'] as number,
+          mimeType: item['mimeType'] as string,
+          isHidden: item['isHidden'] === true,
+          kind: (item['kind'] as string) === 'video' ? 'video' as const : 'image' as const,
+        }));
+        collected.push(...typed);
+        if (this.onScanBatch) {
+          this.onScanBatch(records, page, totalPages);
+        }
+      },
+    );
+
+    await promise;
+    return collected;
   }
 
   /**

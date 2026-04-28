@@ -69,7 +69,6 @@ import {
   MSG_FS_MKDIR_RESPONSE,
   MSG_FS_DELETE_RESPONSE,
   MSG_FS_RENAME_RESPONSE,
-  MSG_GALLERY_SCAN_RESPONSE,
   MSG_GALLERY_THUMBNAIL_RESPONSE,
   MSG_GALLERY_MEDIA_EVENT,
   MSG_FS_WATCH_RESPONSE,
@@ -672,6 +671,7 @@ export class Daemon {
     this.filesystemHandler = new FilesystemHandler();
     this.galleryHandler = new GalleryHandler();
     this.queryClient = new QueryClient();
+    this.galleryHandler.setQueryClient(this.queryClient);
     // EventListener is created lazily once notifyFn is set (by wireNotifications)
 
     // Merge real-time gallery events into the pre-scanned cache
@@ -750,12 +750,10 @@ export class Daemon {
       });
     }
 
-    // Gallery responses from phone
-    for (const galleryType of [MSG_GALLERY_SCAN_RESPONSE, MSG_GALLERY_THUMBNAIL_RESPONSE]) {
-      this.messageRouter.registerHandler(galleryType, (msg) => {
-        this.galleryHandler!.handleResponse(msg);
-      });
-    }
+    // Gallery thumbnail responses from phone (scans go through QueryClient)
+    this.messageRouter.registerHandler(MSG_GALLERY_THUMBNAIL_RESPONSE, (msg) => {
+      this.galleryHandler!.handleResponse(msg);
+    });
 
     // Gallery real-time media events from phone
     this.messageRouter.registerHandler(MSG_GALLERY_MEDIA_EVENT, (msg, conn) => {

@@ -502,6 +502,7 @@ export class SyncOrchestrator {
       `Synchronizing messages — ${threadsToSync.length} threads with activity in last month`,
     );
 
+    let perThreadFailures = 0;
     for (const conv of threadsToSync) {
       if (this.aborted) break;
 
@@ -509,8 +510,30 @@ export class SyncOrchestrator {
       const sinceDate = now - window;
       this.currentThreadName = conv.addresses ?? String(conv.thread_id);
 
-      await quickMessageSync(this.queryClient, this.db, conv.thread_id, sinceDate);
-      this.notify('sms.messages', { threadId: conv.thread_id });
+      try {
+        await quickMessageSync(this.queryClient, this.db, conv.thread_id, sinceDate);
+        this.notify('sms.messages', { threadId: conv.thread_id });
+      } catch (err) {
+        // One thread's failure (e.g. query timeout from the phone hanging on
+        // a corrupted MMS row) MUST NOT kill the whole batch sync — log and
+        // continue. The desktop's query-cancel was already sent on timeout
+        // so the phone isn't still chewing on it.
+        perThreadFailures++;
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('sync', 'Thread message sync failed, continuing', {
+          threadId: conv.thread_id,
+          threadName: this.currentThreadName,
+          error: msg,
+        });
+        debugConsole.log('query', 'error',
+          `Thread ${conv.thread_id} (${this.currentThreadName}) sync failed — continuing: ${msg}`);
+      }
+    }
+    if (perThreadFailures > 0) {
+      logger.warn('sync', 'Batch message sync finished with errors', {
+        failures: perThreadFailures,
+        ofTotal: threadsToSync.length,
+      });
     }
 
     if (!this.aborted) {

@@ -24,6 +24,26 @@ const TAPBACK_ADD = /^(Liked|Loved|Laughed at|Emphasized|Questioned|Disliked) ["
 // Match: Removed a like from "text", Removed a heart from "text", etc.
 const TAPBACK_REMOVE = /^Removed an? (like|heart|laugh|emphasis|question mark|dislike) from ["\u201C](.+)["\u201D]\s*$/s
 
+// Google Messages / Android emoji reaction format: `<emoji> to "text"`.
+// Common variants:
+//   <heart> to "text"          (Loved)
+//   <thumbs-up> to "text"      (Liked)
+//   Reacted <emoji> to "text"  (some clients prefix with "Reacted")
+// The U+FE0F variation selector is sometimes absent and there's often a
+// zero-width space (U+200B) right after the emoji.
+const TAPBACK_EMOJI_TO = /^(?:Reacted\s+)?(\u{1F44D}|❤️?|\u{1F602}|‼️?|❓|\u{1F44E})[​\s]+to[​\s]+["“](.+)["”]\s*$/us
+
+const EMOJI_TO_VERB: Record<string, 'Liked' | 'Loved' | 'Laughed at' | 'Emphasized' | 'Questioned' | 'Disliked'> = {
+  '\u{1F44D}': 'Liked',
+  '❤️': 'Loved',
+  '❤': 'Loved',
+  '\u{1F602}': 'Laughed at',
+  '‼️': 'Emphasized',
+  '‼': 'Emphasized',
+  '❓': 'Questioned',
+  '\u{1F44E}': 'Disliked',
+}
+
 const ADD_EMOJI: Record<string, string> = {
   'Liked': '\u{1F44D}',
   'Loved': '\u2764\uFE0F',
@@ -93,6 +113,24 @@ export function parseTapback(body: string): ParsedTapback | null {
     return {
       type: 'remove',
       emoji: REMOVE_EMOJI[match[1]!] ?? '\u{1F44D}',
+      quotedText,
+      isTruncated,
+    }
+  }
+
+  // Google Messages / Android style: `<emoji> to "text"`.
+  match = TAPBACK_EMOJI_TO.exec(body)
+  if (match) {
+    const rawEmoji = match[1]!
+    const verb = EMOJI_TO_VERB[rawEmoji]
+    let quotedText = match[2]!.trim()
+    const isTruncated = quotedText.endsWith('\u2026') || quotedText.endsWith('...')
+    if (isTruncated) {
+      quotedText = quotedText.replace(/[\u2026.]+$/, '').trim()
+    }
+    return {
+      type: 'add',
+      emoji: verb ? ADD_EMOJI[verb]! : rawEmoji,
       quotedText,
       isTruncated,
     }

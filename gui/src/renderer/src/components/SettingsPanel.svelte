@@ -476,14 +476,12 @@
         >
           {t('settings.aboutBtn')}
         </button>
-        {#if __DEV_BUILD__}
-          <button
-            class="settings-panel__btn settings-panel__btn--outline"
-            onclick={() => onSyncConsole?.()}
-          >
-            Sync Console
-          </button>
-        {/if}
+        <button
+          class="settings-panel__btn settings-panel__btn--outline"
+          onclick={() => onSyncConsole?.()}
+        >
+          Sync Console
+        </button>
       </div>
     </div>
   </div>
